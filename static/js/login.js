@@ -9,64 +9,76 @@ document.addEventListener("DOMContentLoaded", function () {
   // Backend API Base URL
   const API_BASE_URL = "http://127.0.0.1:5000";
 
-  // Send OTP Request
+  // Add these validation functions
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const isValidOTP = (otp) => /^\d{6}$/.test(otp);
+
+  // Modified Send OTP handler
   sendOtpBtn.addEventListener("click", async function () {
     const email = emailInput.value.trim();
-    if (!email) {
-      alert("Please enter a valid email.");
+    
+    if (!isValidEmail(email)) {
+      alert("Please enter a valid email address (e.g., user@example.com)");
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/request-otp`, {
+      const response = await fetch(`/login`, {  // Changed to match your Flask route
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
-      if (response.ok) {
-        alert(data.message);
-        otpRequestForm.style.display = "none"; // Hide email form
-        otpVerifyForm.style.display = "block"; // Show OTP form
-      } else {
-        alert(`Error: ${data.error}`);
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send OTP');
       }
+
+      // Your existing UI updates
+      alert(data.message);
+      otpRequestForm.style.display = "none";
+      otpVerifyForm.style.display = "block";
+      otpInput.focus();  // Added focus to OTP field
+
     } catch (error) {
-      console.error("Error sending OTP:", error);
-      alert("Failed to send OTP. Please try again.");
+      console.error("Error:", error);
+      alert(error.message);
     }
   });
 
-  // Verify OTP
+  // Enhanced Verify OTP handler
   verifyOtpBtn.addEventListener("click", async function () {
     const otp = otpInput.value.trim();
-    if (!otp) {
-      alert("Please enter the OTP.");
+    const email = emailInput.value.trim();
+
+    if (!isValidOTP(otp)) {
+      alert("Please enter a 6-digit numeric OTP");
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
+      const response = await fetch(`/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: emailInput.value, otp }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
       });
 
       const data = await response.json();
-      if (response.ok) {
-        alert(data.message);
-        window.location.href = "/dashboard"; // Redirect after successful login
-      } else {
-        alert(`Error: ${data.error}`);
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'OTP verification failed');
       }
+
+      // Your existing success handling
+      alert(data.message);
+      window.location.href = "/home";
+
     } catch (error) {
-      console.error("Error verifying OTP:", error);
-      alert("Failed to verify OTP. Please try again.");
+      console.error("Error:", error);
+      alert(error.message);
+      otpInput.value = "";  // Clear invalid OTP
+      otpInput.focus();
     }
   });
 });
