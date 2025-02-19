@@ -7,6 +7,10 @@ def home():
     return render_template('report_issue.html') 
 
 
+@app.route('/login')
+def login():
+    return render_template('login.html') 
+
 
 
 
