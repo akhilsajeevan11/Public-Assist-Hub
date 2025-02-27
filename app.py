@@ -1,13 +1,23 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify  # <-- Add render_template, request, redirect, url_for, session, jsonify
+import os
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash  # <-- Add render_template, request, redirect, url_for, session, jsonify, flash
 import random
 from flask_mail import Mail, Message
-import os
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
+from datetime import datetime
+import mysql.connector
+
+# Initialize app before other imports
+app = Flask(__name__)
+# app.config.from_object(Config)
+
 
 load_dotenv()  # Load environment variables first
 
-app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
+
+ 
+
 
 # Email configuration
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -18,14 +28,79 @@ app.config['MAIL_PASSWORD'] = os.environ.get('EMAIL_PASS')
 
 mail = Mail(app)
 
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+
 @app.route('/')
 def index():
     return render_template('login.html') 
 
 
-@app.route('/home')
+@app.route('/submit_issue', methods=['GET', 'POST'])
 def home():
-    return render_template('report_issue.html') 
+    if request.method == 'POST':
+        try:
+            # Validate required fields
+            if not all(key in request.form for key in ['title', 'description', 'location']):
+                raise ValueError("Missing required fields")
+            
+            title = request.form['title']
+            print("title iss",title)
+            description = request.form['description']
+            location = request.form['location']
+            image = request.files.get('image')  # Use get() to avoid KeyError
+            print("Image is ..",image)
+
+            filename = None
+            if image and image.filename != '':  # Check for empty filename
+                if not allowed_file(image.filename):
+                    raise ValueError("Invalid file type")
+                
+                filename = secure_filename(f"{datetime.now().timestamp()}_{image.filename}")
+                upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+                image.save(upload_path)
+
+            # Modified database insertion
+            with Db() as db:
+                query = """
+                INSERT INTO issues 
+                    (title, description, image, location, status, created_at)
+                VALUES (%s, %s, %s, %s, 'Reported', NOW())
+                """
+                values = (title, description, filename, location)
+                
+                try:
+                    issue_id = db.insert(query, values)
+                except mysql.connector.Error as err:
+                    app.logger.error(f"Database error: {err}")
+                    raise RuntimeError("Failed to save issue to database")
+
+            flash('Issue reported successfully!', 'success')
+            return redirect(url_for('home'))
+
+        except ValueError as ve:
+            app.logger.warning(f"Validation error: {str(ve)}")
+            flash(str(ve), 'warning')
+        except RuntimeError as re:
+            app.logger.error(f"Database operation failed: {str(re)}")
+            flash('Database error. Please try again.', 'danger')
+        except Exception as e:
+            app.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+            flash('An unexpected error occurred. Please try again.', 'danger')
+            
+        return redirect(url_for('submit_issue'))
+    
+    # GET request handling
+    return render_template('report_issue.html')
+
+
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -76,6 +151,23 @@ def login():
 
 
 
+@app.route('/municipality')
+def municipality():
+    return render_template('municipality.html') 
+
+
+
+@app.route('/pwd')
+def pwd():
+    return render_template('pwd.html') 
+
+
+
+@app.route('/admin')
+def admin():
+    return render_template('admin.html') 
+
+
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,)

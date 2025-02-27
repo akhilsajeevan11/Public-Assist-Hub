@@ -47,11 +47,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Enhanced Verify OTP handler
+  // Modified Verify OTP handler
   verifyOtpBtn.addEventListener("click", async function () {
     const otp = otpInput.value.trim();
-    const email = emailInput.value.trim();
-
+    
     if (!isValidOTP(otp)) {
       alert("Please enter a 6-digit numeric OTP");
       return;
@@ -61,7 +60,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const response = await fetch(`/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ otp: otp }),  // Send only OTP
       });
 
       const data = await response.json();
@@ -70,14 +69,17 @@ document.addEventListener("DOMContentLoaded", function () {
         throw new Error(data.error || 'OTP verification failed');
       }
 
-      // Your existing success handling
-      alert(data.message);
-      window.location.href = "/home";
+      // Handle successful verification
+      if (data.success) {
+        window.location.href = data.redirect;  // Use redirect URL from server
+      } else {
+        alert(data.error || 'Verification failed');
+      }
 
     } catch (error) {
       console.error("Error:", error);
       alert(error.message);
-      otpInput.value = "";  // Clear invalid OTP
+      otpInput.value = "";
       otpInput.focus();
     }
   });
