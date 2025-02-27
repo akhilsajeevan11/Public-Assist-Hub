@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Public Assist Hub</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../static/css/admin.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-md-block sidebar bg-dark text-light">
+                <div class="sidebar-sticky p-3">
+                    <h4 class="text-center">Public Assist Hub</h4>
+                    <ul class="nav flex-column mt-4">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-toggle="tab" href="#dashboard">Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#users">User Management</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#issues">Reported Issues</a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-10 tab-content p-4">
+                <!-- Dashboard -->
+                <div id="dashboard" class="tab-pane fade show active">
+                    <h2>Admin Dashboard</h2>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">150</h5>
+                                    <p class="card-text">Total Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">45</h5>
+                                    <p class="card-text">Active Issues</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card shadow-sm">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">120</h5>
+                                    <p class="card-text">Resolved Issues</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- User Management -->
+                <div id="users" class="tab-pane fade">
+                    <h2>User Management</h2>
+                    <div class="card p-3 mb-3">
+                        <h5>Add New User</h5>
+                        <form id="addUserForm">
+                            <div class="form-row">
+                                <div class="form-group col-md-4">
+                                    <input type="email" class="form-control" placeholder="Email" required>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <input type="password" class="form-control" placeholder="Password" required>
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <select class="form-control" required>
+                                        <option value="Municipality">Municipality</option>
+                                        <option value="Pwd">PWD</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-1">
+                                    <button type="submit" class="btn btn-primary btn-block">Add</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Reported Issues -->
+                <div id="issues" class="tab-pane fade">
+                    <h2>Reported Issues</h2>
+                    <ul class="nav nav-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-toggle="tab" href="#municipality">Municipality</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#pwd">PWD</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content mt-3">
+                        <div id="municipality" class="tab-pane fade show active">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Description</th>
+                                        <th>Category</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>101</td>
+                                        <td>Garbage not collected</td>
+                                        <td>Waste Management</td>
+                                        <td><span class="badge badge-warning">Pending</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success">Resolve</button>
+                                            <button class="btn btn-sm btn-info">View</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="pwd" class="tab-pane fade">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Description</th>
+                                        <th>Category</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>102</td>
+                                        <td>Pothole on Main Street</td>
+                                        <td>Road Safety</td>
+                                        <td><span class="badge badge-warning">Pending</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-success">Resolve</button>
+                                            <button class="btn btn-sm btn-info">View</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
