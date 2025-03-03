@@ -15,6 +15,14 @@ function previewImage(event) {
   }
 }
 
+function clearImagePreview() {
+  const output = document.getElementById("preview");
+  output.src = "";
+  output.style.display = "none";
+  document.getElementById("viewImageBtn").style.display = "none";
+  document.getElementById("issueImage").value = ""; // Clear the file input
+}
+
 function viewImage() {
   const imgSrc = document.getElementById("preview").src;
   if (imgSrc) {
@@ -98,37 +106,40 @@ document
   .addEventListener("submit", function (event) {
     event.preventDefault();
 
-    const title = document.getElementById("issueTitle").value;
-    const description = document.getElementById("issueDescription").value;
-    const location = document.getElementById("issueLocation").value;
-    const image = document.getElementById("issueImage").files[0];
-
-    // Basic validation
-    if (!title || !description || !location) {
-      alert("Please fill out all required fields.");
-      return;
-    }
-
     const formData = new FormData();
-    formData.append("title", title);
-    formData.append("description", description);
-    formData.append("location", location);
-    if (image) {
-      formData.append("image", image);
+    formData.append("title", document.getElementById("issueTitle").value);
+    formData.append("description", document.getElementById("issueDescription").value);
+    formData.append("location", document.getElementById("issueLocation").value);
+    
+    const imageFile = document.getElementById("issueImage").files[0];
+    if (imageFile) {
+      formData.append("image", imageFile);
     }
 
     fetch("/submit_issue", {
       method: "POST",
       body: formData,
     })
-      .then((response) => response.json())
-      .then((data) => {
-        alert(data.message);
-        loadIssues();
-      })
-      .catch((error) => {
-        alert("Error submitting issue: " + error);
+    .then(response => {
+      if (response.headers.get('content-type')?.includes('application/json')) {
+        return response.json();
+      }
+      return response.text().then(text => {
+        throw new Error(text || 'Server error');
       });
+    })
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        document.getElementById('issueForm').reset();
+        clearImagePreview();
+      } else {
+        alert("Error: " + data.message);
+      }
+    })
+    .catch(error => {
+      alert("Error submitting issue: " + error.message);
+    });
   });
 
 // Load issues for tracking and feedback
