@@ -3,3 +3,4 @@ yolo-env
 .env
 YOLO11-Training
 assist-hub-envYOLO11-Training/
+__pycache__
