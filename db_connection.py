@@ -32,6 +32,7 @@ class Db:
     def execute(self, query, params=None):
         try:
             self.cursor.execute(query, params or ())
+            self._clear_unread_results()  # Clear unread results before committing
             self.connection.commit()
             return self.cursor.rowcount
         except mysql.connector.Error as err:
@@ -43,7 +44,16 @@ class Db:
         return self
 
     def fetchone(self):
-        return self.cursor.fetchone()
+        if self.cursor.with_rows:  # Check if there is a result set
+            return self.cursor.fetchone()
+        return None
 
     def fetchall(self):
-        return self.cursor.fetchall()
+        if self.cursor.with_rows:  # Check if there is a result set
+            return self.cursor.fetchall()
+        return []
+
+    def _clear_unread_results(self):
+        """Clear any unread results from the cursor."""
+        while self.cursor.nextset():
+            pass

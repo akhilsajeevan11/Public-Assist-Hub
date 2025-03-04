@@ -121,6 +121,8 @@ document
       body: formData,
     })
     .then(response => {
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
       if (response.headers.get('content-type')?.includes('application/json')) {
         return response.json();
       }
@@ -129,15 +131,17 @@ document
       });
     })
     .then(data => {
+      console.log("Response data:", data);
       if (data.success) {
-        alert(data.message);
-        document.getElementById('issueForm').reset();
-        clearImagePreview();
+        alert(data.message); // Show success message
+        document.getElementById('issueForm').reset(); // Reset the form
+        clearImagePreview(); // Clear the image preview
       } else {
-        alert("Error: " + data.message);
+        alert("Error: " + data.message); // Show error message
       }
     })
     .catch(error => {
+      console.error("Error submitting issue:", error);
       alert("Error submitting issue: " + error.message);
     });
   });

@@ -78,7 +78,7 @@ def login():
                         db.execute(query, values)
                     
                     session.pop('otp', None)
-                    return jsonify({'success': True, 'redirect': url_for('home')})
+                    return jsonify({'success': True, 'redirect': url_for('submit_issue')})
                 return jsonify({'error': 'Invalid OTP'}), 400
 
             # Handle email submission
@@ -126,41 +126,63 @@ def pwd():
 def admin():
     if request.method == 'POST':
         try:
-            # Get form data
             data = request.get_json()
             email = data.get('email')
             password = data.get('password')
-            role = data.get('role')  # Municipality or PWD
+            role = data.get('role')
 
-            # Validate required fields
             if not all([email, password, role]):
                 return jsonify({'success': False, 'message': 'All fields are required'}), 400
 
-            # Insert into admin table
             with Db() as db:
-                # Insert into admin table
-                query = """
-                INSERT INTO admin (name, email, password)
-                VALUES (%s, %s, %s)
-                """
-                values = (role, email, password)
-                db.execute(query, values)
+                # Start transaction
+                db.execute("START TRANSACTION")
 
-                # Insert into department table
-                query = """
-                INSERT INTO department (name)
-                VALUES (%s)
-                """
-                values = (role,)
-                db.execute(query, values)
+                try:
+                    # Check if email already exists
+                    db.execute("SELECT email FROM admin WHERE email = %s", (email,))
+                    if db.fetchone():
+                        return jsonify({'success': False, 'message': 'Email already exists'}), 400
 
-            return jsonify({'success': True, 'message': 'User and department added successfully'})
+                    # Insert into department table first
+                    query = """
+                    INSERT INTO department (name)
+                    VALUES (%s)
+                    """
+                    values = (role,)
+                    db.execute(query, values)
+                    dept_id = db.cursor.lastrowid
+
+                    # Insert into admin table
+                    query = """
+                    INSERT INTO admin (name, email, password)
+                    VALUES (%s, %s, %s)
+                    """
+                    values = (role, email, password)
+                    db.execute(query, values)
+
+                    # Insert into municipality/pwd table based on role
+                    if role == "Municipality":
+                        query = "INSERT INTO municipality (deptID) VALUES (%s)"
+                        db.execute(query, (dept_id,))
+                    elif role == "PWD":
+                        query = "INSERT INTO pwd (deptID) VALUES (%s)"
+                        db.execute(query, (dept_id,))
+
+                    # Commit transaction
+                    db.execute("COMMIT")
+
+                    return jsonify({'success': True, 'message': 'User and department added successfully'})
+
+                except Exception as e:
+                    # Rollback on error
+                    db.execute("ROLLBACK")
+                    raise e
 
         except Exception as e:
             app.logger.error(f"Error adding user: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
 
-    # GET request handling
     return render_template('admin.html')
 
 
@@ -201,23 +223,47 @@ def submit_issue():
                     class_id = int(results[0].boxes.cls[0])
                     category = model.names[class_id]
 
-            # Database insertion
+            # Determine department based on category
             with Db() as db:
+                if category in ['Waste Management', 'Street Lights']:
+                    db.execute("SELECT deptID FROM department WHERE name = 'Municipality'")
+                else:
+                    db.execute("SELECT deptID FROM department WHERE name = 'PWD'")
+                
+                dept_id = db.fetchone()[0]
+
+                # Insert into complaint table
                 query = """
                 INSERT INTO complaint 
-                    (description, photo, geoLocation, category, email)
-                VALUES (%s, %s, %s, %s, %s)
+                    (description, photo, geoLocation, category, email, assignedDept)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """
-                values = (description, filename, location, category, email)
+                values = (description, filename, location, category, email, dept_id)
                 db.execute(query, values)
 
-            return redirect(url_for('submit_issue'))  # Redirect back to the submit issue page
+                # Get the last inserted complaint ID
+                complaint_id = db.cursor.lastrowid
+
+                # Insert into imagerecognition table
+                query = """
+                INSERT INTO imagerecognition 
+                    (model, detectedIssueType, complaintID)
+                VALUES (%s, %s, %s)
+                """
+                values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
+                db.execute(query, values)
+
+            # Return success message
+            return jsonify({'success': True, 'message': 'Issue submitted successfully!'})
 
         except ValueError as ve:
+            app.logger.error(f"Validation error: {str(ve)}", exc_info=True)
             return jsonify({'success': False, 'message': str(ve)}), 400
         except RuntimeError as re:
+            app.logger.error(f"Runtime error: {str(re)}", exc_info=True)
             return jsonify({'success': False, 'message': str(re)}), 500
         except Exception as e:
+            app.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
     
     # GET request handling
@@ -231,7 +277,7 @@ def get_issues():
             query = """
                 SELECT * FROM complaint
                 WHERE email = %s
-                ORDER BY created_at DESC
+                ORDER BY id DESC
             """
             db.execute(query, (session.get('email'),))
             issues = db.fetchall()
@@ -240,6 +286,101 @@ def get_issues():
         app.logger.error(f"Error fetching issues: {str(e)}")
         return jsonify([])
 
+@app.route('/get-users')
+def get_users():
+    try:
+        with Db() as db:
+            query = """
+                SELECT a.adminID, a.email, a.name, d.deptID
+                FROM admin a
+                JOIN department d ON a.name = d.name
+            """
+            db.execute(query)
+            rows = db.fetchall()
+            app.logger.info(f"Raw database rows: {rows}")  # Log raw database output
+            
+            users = [{
+                'id': row[0],
+                'email': row[1],
+                'role': row[2],
+                'deptID': row[3]
+            } for row in rows]
+            
+            app.logger.info(f"Processed users: {users}")  # Log processed users
+            return jsonify(users)
+    except Exception as e:
+        app.logger.error(f"Error fetching users: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/delete-user/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    try:
+        with Db() as db:
+            # Get department ID first
+            db.execute("""
+                SELECT d.deptID 
+                FROM department d
+                JOIN admin a ON a.name = d.name
+                WHERE a.adminID = %s
+            """, (user_id,))
+            dept_id = db.fetchone()[0]
+
+            # Delete from admin table
+            db.execute("DELETE FROM admin WHERE adminID = %s", (user_id,))
+            
+            # Delete from department table
+            db.execute("DELETE FROM department WHERE deptID = %s", (dept_id,))
+            
+            # Delete from municipality/pwd tables if exists
+            db.execute("DELETE FROM municipality WHERE deptID = %s", (dept_id,))
+            db.execute("DELETE FROM pwd WHERE deptID = %s", (dept_id,))
+
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/update-user/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    try:
+        data = request.get_json()
+        with Db() as db:
+            # Update admin table
+            db.execute("UPDATE admin SET email = %s, name = %s WHERE adminID = %s",
+                      (data['email'], data['role'], user_id))
+            
+            # Update department table
+            db.execute("""
+                UPDATE department d
+                JOIN admin a ON a.name = d.name
+                SET d.name = %s
+                WHERE a.adminID = %s
+            """, (data['role'], user_id))
+
+        return jsonify({'success': True, 'message': 'User updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/submit_feedback', methods=['POST'])
+def submit_feedback():
+    try:
+        data = request.get_json()
+        email = session.get('email')
+        complaint_id = data.get('complaintID')
+        rating = data.get('rating')
+        comments = data.get('comments')
+
+        with Db() as db:
+            query = """
+            INSERT INTO feedback 
+                (email, complaintID, rating, comments)
+            VALUES (%s, %s, %s, %s)
+            """
+            values = (email, complaint_id, rating, comments)
+            db.execute(query, values)
+
+        return jsonify({'success': True, 'message': 'Feedback submitted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True,)
