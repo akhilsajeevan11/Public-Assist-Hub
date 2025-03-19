@@ -100,10 +100,8 @@ function getPlaceName(lat, lng) {
   });
 }
 
-// Handle form submission with AJAX (CSRF, image upload, etc.)
-document
-  .getElementById("issueForm")
-  .addEventListener("submit", function (event) {
+// Handle form submission with AJAX
+document.getElementById("issueForm").addEventListener("submit", function (event) {
     event.preventDefault();
 
     const formData = new FormData();
@@ -113,38 +111,34 @@ document
     
     const imageFile = document.getElementById("issueImage").files[0];
     if (imageFile) {
-      formData.append("image", imageFile);
+        formData.append("image", imageFile);
     }
 
     fetch("/submit_issue", {
-      method: "POST",
-      body: formData,
+        method: "POST",
+        body: formData,
     })
     .then(response => {
-      console.log("Response status:", response.status);
-      console.log("Response headers:", response.headers);
-      if (response.headers.get('content-type')?.includes('application/json')) {
+        if (!response.ok) {
+            throw new Error("Network response was not ok");
+        }
         return response.json();
-      }
-      return response.text().then(text => {
-        throw new Error(text || 'Server error');
-      });
     })
     .then(data => {
-      console.log("Response data:", data);
-      if (data.success) {
-        alert(data.message); // Show success message
-        document.getElementById('issueForm').reset(); // Reset the form
-        clearImagePreview(); // Clear the image preview
-      } else {
-        alert("Error: " + data.message); // Show error message
-      }
+        if (data.success) {
+            alert(data.message); // Show success message
+            document.getElementById('issueForm').reset(); // Reset the form
+            clearImagePreview(); // Clear the image preview
+            loadIssues(); // Refresh the issues list
+        } else {
+            alert("Error: " + data.message); // Show error message
+        }
     })
     .catch(error => {
-      console.error("Error submitting issue:", error);
-      alert("Error submitting issue: " + error.message);
+        console.error("Error submitting issue:", error);
+        alert("Error submitting issue: " + error.message);
     });
-  });
+});
 
 // Load issues for tracking and feedback
 function loadIssues() {

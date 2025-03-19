@@ -10,6 +10,7 @@ from db_connection import Db
 import torch
 from PIL import Image
 from ultralytics import YOLO
+from flask_socketio import SocketIO
 
 # Initialize app before other imports
 app = Flask(__name__)
@@ -43,6 +44,8 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+# Initialize SocketIO after creating your Flask app
+socketio = SocketIO(app)
 
 @app.route('/')
 def index():
@@ -78,7 +81,7 @@ def login():
                         db.execute(query, values)
                     
                     session.pop('otp', None)
-                    return jsonify({'success': True, 'redirect': url_for('submit_issue')})
+                    return jsonify({'success': True, 'redirect': url_for('report_issue')})
                 return jsonify({'error': 'Invalid OTP'}), 400
 
             # Handle email submission
@@ -112,162 +115,351 @@ def login():
 
 @app.route('/municipality')
 def municipality():
-    return render_template('municipality.html') 
+    try:
+        with Db() as db:
+            # Fetch all issues assigned to the Municipality department
+            query = """
+                SELECT complaintID AS id, category, description, status
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+            """
+            db.execute(query)
+            issues = db.fetchall()
+            app.logger.info(f"Fetched issues: {issues}")
+
+            # Fetch count of Pending issues with category 'Waste Management'
+            query_pending = """
+                SELECT COUNT(*) AS pending_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+                AND category = 'waste'
+                AND status = 'Pending'
+            """
+            db.execute(query_pending)
+            pending_count = db.fetchone()['pending_count']
+
+            # Fetch count of Resolved issues
+            query_resolved = """
+                SELECT COUNT(*) AS resolved_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+                AND status = 'Resolved'
+            """
+            db.execute(query_resolved)
+            resolved_count = db.fetchone()['resolved_count']
+
+        # Render the municipality.html template with the issues and counts data
+        return render_template('municipality.html', issues=issues, pending_count=pending_count, resolved_count=resolved_count)
+    except Exception as e:
+        app.logger.error(f"Error fetching issues: {str(e)}", exc_info=True)
+        return render_template('municipality.html', issues=[], pending_count=0, resolved_count=0)
 
 
 
 @app.route('/pwd')
 def pwd():
-    return render_template('pwd.html') 
+    try:
+        with Db() as db:
+            # Fetch all issues assigned to the PWD department
+            query = """
+                SELECT complaintID AS id, category, description, status
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Pwd')
+            """
+            db.execute(query)
+            issues = db.fetchall()
+            app.logger.info(f"Fetched issues: {issues}")
+
+            # Fetch count of Pending issues with category 'Pothole'
+            query_pending = """
+                SELECT COUNT(*) AS pending_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Pwd')
+                AND category = 'Pothole'
+                AND status = 'Pending'
+            """
+            db.execute(query_pending)
+            pending_count = db.fetchone()['pending_count']
+
+            # Fetch count of Resolved issues
+            query_resolved = """
+                SELECT COUNT(*) AS resolved_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Pwd')
+                AND status = 'Resolved'
+            """
+            db.execute(query_resolved)
+            resolved_count = db.fetchone()['resolved_count']
+
+        # Render the pwd.html template with the issues and counts data
+        return render_template('pwd.html', issues=issues, pending_count=pending_count, resolved_count=resolved_count)
+    except Exception as e:
+        app.logger.error(f"Error fetching issues: {str(e)}", exc_info=True)
+        return render_template('pwd.html', issues=[], pending_count=0, resolved_count=0)
 
 
+
+@app.route('/api/issues/<int:issue_id>/resolve', methods=['PUT'])
+def resolve_issue(issue_id):
+    try:
+        with Db() as db:
+            # Update the status of the issue to "Resolved"
+            query = """
+                UPDATE complaint
+                SET status = 'Resolved'
+                WHERE complaintID = %s
+            """
+            db.execute(query, (issue_id,))
+            app.logger.info(f"Issue {issue_id} resolved successfully")
+        
+        return jsonify({'success': True, 'message': 'Issue resolved successfully'})
+    except Exception as e:
+        app.logger.error(f"Error resolving issue: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to resolve issue'}), 500
+
+@app.route('/api/issues/<int:issue_id>/check', methods=['PUT'])
+def check_issue(issue_id):
+    try:
+        with Db() as db:
+            # Mark the issue as checked (you can add a 'checked' column to the complaint table if needed)
+            query = """
+                UPDATE complaint
+                SET checked = 1
+                WHERE complaintID = %s
+            """
+            db.execute(query, (issue_id,))
+            app.logger.info(f"Issue {issue_id} checked successfully")
+        
+        return jsonify({'success': True, 'message': 'Issue checked successfully'})
+    except Exception as e:
+        app.logger.error(f"Error checking issue: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to check issue'}), 500
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-            email = data.get('email')
-            password = data.get('password')
-            role = data.get('role')
-
-            if not all([email, password, role]):
-                return jsonify({'success': False, 'message': 'All fields are required'}), 400
-
-            with Db() as db:
-                # Start transaction
-                db.execute("START TRANSACTION")
-
-                try:
-                    # Check if email already exists
-                    db.execute("SELECT email FROM admin WHERE email = %s", (email,))
-                    if db.fetchone():
-                        return jsonify({'success': False, 'message': 'Email already exists'}), 400
-
-                    # Insert into department table first
-                    query = """
-                    INSERT INTO department (name)
-                    VALUES (%s)
-                    """
-                    values = (role,)
-                    db.execute(query, values)
-                    dept_id = db.cursor.lastrowid
-
-                    # Insert into admin table
-                    query = """
-                    INSERT INTO admin (name, email, password)
-                    VALUES (%s, %s, %s)
-                    """
-                    values = (role, email, password)
-                    db.execute(query, values)
-
-                    # Insert into municipality/pwd table based on role
-                    if role == "Municipality":
-                        query = "INSERT INTO municipality (deptID) VALUES (%s)"
-                        db.execute(query, (dept_id,))
-                    elif role == "PWD":
-                        query = "INSERT INTO pwd (deptID) VALUES (%s)"
-                        db.execute(query, (dept_id,))
-
-                    # Commit transaction
-                    db.execute("COMMIT")
-
-                    return jsonify({'success': True, 'message': 'User and department added successfully'})
-
-                except Exception as e:
-                    # Rollback on error
-                    db.execute("ROLLBACK")
-                    raise e
-
-        except Exception as e:
-            app.logger.error(f"Error adding user: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
-
+    # if request.method == 'GET':
     return render_template('admin.html')
 
 
+@app.route('/admin/add-user', methods=['POST'])
+def admin_add_user():
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'success': False, 'message': 'Invalid JSON input'}), 400
+
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role').upper()  # Ensure consistency
+
+        if not all([email, password, role]):
+            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+
+        if role not in ["MUNICIPALITY", "PWD"]:
+            return jsonify({'success': False, 'message': 'Invalid role'}), 400
+
+        with Db() as db:
+            db.execute("START TRANSACTION")
+
+            try:
+                # Insert into department table
+                db.execute("INSERT INTO department (name) VALUES (%s)", (role,))
+                dept_id = db.cursor.lastrowid
+
+                # Insert into role-specific table (municipality or pwd)
+                table_name = "municipality" if role == "MUNICIPALITY" else "pwd"
+                db.execute(
+                    f"INSERT INTO {table_name} (deptID, name, email, password) VALUES (%s, %s, %s, %s)",
+                    (dept_id, role, email, password)
+                )
+
+                # Insert into officials table
+                db.execute(
+                    "INSERT INTO officials (name, email, password, deptID) VALUES (%s, %s, %s, %s)",
+                    (role, email, password, dept_id)
+                )
+
+                db.execute("COMMIT")
+
+                return jsonify({
+                    'success': True,
+                    'message': 'User added successfully',
+                    'data': {
+                        'deptID': dept_id,
+                        'email': email,
+                        'role': role
+                    }
+                })
+
+            except Exception as e:
+                db.execute("ROLLBACK")
+                app.logger.error(f"Database error: {str(e)}")
+                return jsonify({'success': False, 'message': 'Database error occurred'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
+    
+
+
+@app.route('/get-officials', methods=['GET'])
+def get_officials():
+    try:
+        with Db() as db:
+            db.execute("SELECT officialID, name, email, deptID FROM officials")
+            officials = db.fetchall()
+            return jsonify([dict(official) for official in officials])
+    except Exception as e:
+        app.logger.error(f"Error fetching officials: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error fetching officials'}), 500
+    
+    
+@app.route('/delete-official/<int:officialID>', methods=['DELETE'])
+def delete_official(officialID):
+    try:
+        with Db() as db:
+            db.execute("START TRANSACTION")
+
+            try:
+                # Get the official's details (including deptID) before deletion
+                db.execute("SELECT deptID, email FROM officials WHERE officialID = %s", (officialID,))
+                official = db.fetchone()
+
+                if not official:
+                    return jsonify({'success': False, 'message': 'Official not found'}), 404
+
+                dept_id = official['deptID']
+                email = official['email']
+
+                # Delete from officials table
+                db.execute("DELETE FROM officials WHERE officialID = %s", (officialID,))
+
+                # Delete from role-specific table (municipality or pwd)
+                db.execute("DELETE FROM municipality WHERE email = %s", (email,))
+                db.execute("DELETE FROM pwd WHERE email = %s", (email,))
+
+                # Check if the department has any remaining officials
+                db.execute("SELECT COUNT(*) AS count FROM officials WHERE deptID = %s", (dept_id,))
+                count_result = db.fetchone()
+
+                # If no officials left in the department, delete the department
+                if count_result['count'] == 0:
+                    db.execute("DELETE FROM department WHERE deptID = %s", (dept_id,))
+
+                db.execute("COMMIT")
+                return jsonify({'success': True, 'message': 'Official and associated records deleted successfully'})
+
+            except Exception as e:
+                db.execute("ROLLBACK")
+                app.logger.error(f"Database error during deletion: {str(e)}")
+                return jsonify({'success': False, 'message': 'Database error during deletion'}), 500
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
+        return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
 
 # Update the model loading code to:
 model = YOLO(os.environ.get('YOLO_MODEL_PATH')) 
 
-@app.route('/submit_issue', methods=['GET', 'POST'])
-def submit_issue():
-    if request.method == 'POST':
-        try:
-            # Validate required fields
-            if not all(key in request.form for key in ['title', 'description', 'location']):
-                raise ValueError("Missing required fields")
-            
-            title = request.form['title']
-            description = request.form['description']
-            location = request.form['location']
-            image = request.files.get('image')
-            email = session.get('email')
-
-            # Process image and get prediction
-            category = "General"  # Default category
-            filename = None
-            if image and image.filename != '':
-                if not allowed_file(image.filename):
-                    raise ValueError("Invalid file type")
-                
-                filename = secure_filename(f"{datetime.now().timestamp()}_{image.filename}")
-                upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                os.makedirs(os.path.dirname(upload_path), exist_ok=True)
-                image.save(upload_path)
-                
-                # YOLO prediction
-                img = Image.open(image.stream)
-                results = model.predict(img)
-                if results and len(results[0]) > 0:
-                    class_id = int(results[0].boxes.cls[0])
-                    category = model.names[class_id]
-
-            # Determine department based on category
-            with Db() as db:
-                if category in ['Waste Management', 'Street Lights']:
-                    db.execute("SELECT deptID FROM department WHERE name = 'Municipality'")
-                else:
-                    db.execute("SELECT deptID FROM department WHERE name = 'PWD'")
-                
-                dept_id = db.fetchone()[0]
-
-                # Insert into complaint table
-                query = """
-                INSERT INTO complaint 
-                    (description, photo, geoLocation, category, email, assignedDept)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                values = (description, filename, location, category, email, dept_id)
-                db.execute(query, values)
-
-                # Get the last inserted complaint ID
-                complaint_id = db.cursor.lastrowid
-
-                # Insert into imagerecognition table
-                query = """
-                INSERT INTO imagerecognition 
-                    (model, detectedIssueType, complaintID)
-                VALUES (%s, %s, %s)
-                """
-                values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
-                db.execute(query, values)
-
-            # Return success message
-            return jsonify({'success': True, 'message': 'Issue submitted successfully!'})
-
-        except ValueError as ve:
-            app.logger.error(f"Validation error: {str(ve)}", exc_info=True)
-            return jsonify({'success': False, 'message': str(ve)}), 400
-        except RuntimeError as re:
-            app.logger.error(f"Runtime error: {str(re)}", exc_info=True)
-            return jsonify({'success': False, 'message': str(re)}), 500
-        except Exception as e:
-            app.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
-    
-    # GET request handling
+@app.route('/report_issue', methods=['GET'])
+def report_issue():
+    # Render the report issue page
     return render_template('report_issue.html')
+
+@app.route('/submit_issue', methods=['POST'])
+def submit_issue():
+    try:
+        # Validate required fields
+        if not all(key in request.form for key in ['title', 'description', 'location']):
+            raise ValueError("Missing required fields")
+        
+        title = request.form['title']
+        description = request.form['description']
+        location = request.form['location']
+        image = request.files.get('image')
+        email = session.get('email')
+
+        # Process image and get prediction
+        category = "General"  # Default category
+        filename = None
+        if image and image.filename != '':
+            if not allowed_file(image.filename):
+                raise ValueError("Invalid file type")
+            
+            # Create the complaint_images folder if it doesn't exist
+            image_folder = os.path.join(app.static_folder, 'complaint_images')
+            os.makedirs(image_folder, exist_ok=True)
+
+            # Generate a unique filename
+            filename = secure_filename(f"{datetime.now().timestamp()}_{image.filename}")
+            upload_path = os.path.join(image_folder, filename)
+            image.save(upload_path)
+            
+            # YOLO prediction
+            img = Image.open(image.stream)
+            results = model.predict(img)
+            if results and len(results[0]) > 0:
+                class_id = int(results[0].boxes.cls[0])
+                category = model.names[class_id]
+
+        # Determine department based on category
+        with Db() as db:
+            category_lower = category.lower()
+            app.logger.info(f"Looking up department for category: {category_lower}")
+
+            if category_lower == 'waste':
+                dept_name = 'Municipality'
+            elif category_lower == 'pothole':
+                dept_name = 'Pwd'
+            else:
+                raise ValueError("Invalid category. Please provide a valid issue category.")
+
+            db.execute("SELECT deptID FROM department WHERE name = %s", (dept_name,))
+            dept_result = db.fetchone()
+            if not dept_result:
+                raise ValueError(f"No department found for category '{category}'. Please contact support.")
+            
+            dept_id = dept_result['deptID']
+            app.logger.info(f"Assigned department: {dept_name} (ID: {dept_id})")
+
+            # Insert into complaint table
+            query = """
+            INSERT INTO complaint 
+                (title, description, photo, geoLocation, category, userID, assignedDept)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            values = (title, description, filename, location, category, session.get('userID'), dept_id)
+            db.execute(query, values)
+
+            # Get the last inserted complaint ID
+            complaint_id = db.cursor.lastrowid
+
+            # Insert into imagerecognition table
+            query = """
+            INSERT INTO imagerecognition 
+                (model, detectedIssueType, complaintID)
+            VALUES (%s, %s, %s)
+            """
+            values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
+            db.execute(query, values)
+
+        # Return success message
+        return jsonify({
+            'success': True,
+            'message': 'Issue submitted successfully!',
+            'image_url': f"/static/complaint_images/{filename}" if filename else None
+        })
+
+    except ValueError as ve:
+        app.logger.error(f"Validation error: {str(ve)}", exc_info=True)
+        return jsonify({'success': False, 'message': str(ve)}), 400
+    except RuntimeError as re:
+        app.logger.error(f"Runtime error: {str(re)}", exc_info=True)
+        return jsonify({'success': False, 'message': str(re)}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
 
 
 @app.route('/get_issues')
@@ -277,7 +469,7 @@ def get_issues():
             query = """
                 SELECT * FROM complaint
                 WHERE email = %s
-                ORDER BY id DESC
+                ORDER BY complaintID DESC
             """
             db.execute(query, (session.get('email'),))
             issues = db.fetchall()
@@ -297,16 +489,16 @@ def get_users():
             """
             db.execute(query)
             rows = db.fetchall()
-            app.logger.info(f"Raw database rows: {rows}")  # Log raw database output
-            
+            app.logger.info(f"Raw database rows: {rows}")
+
             users = [{
-                'id': row[0],
-                'email': row[1],
-                'role': row[2],
-                'deptID': row[3]
+                'id': row['adminID'],
+                'email': row['email'],
+                'role': row['name'],
+                'deptID': row['deptID']
             } for row in rows]
             
-            app.logger.info(f"Processed users: {users}")  # Log processed users
+            app.logger.info(f"Processed users: {users}")
             return jsonify(users)
     except Exception as e:
         app.logger.error(f"Error fetching users: {str(e)}", exc_info=True)
@@ -316,47 +508,50 @@ def get_users():
 def delete_user(user_id):
     try:
         with Db() as db:
-            # Get department ID first
-            db.execute("""
-                SELECT d.deptID 
-                FROM department d
-                JOIN admin a ON a.name = d.name
-                WHERE a.adminID = %s
-            """, (user_id,))
-            dept_id = db.fetchone()[0]
+            db.execute("START TRANSACTION")
 
-            # Delete from admin table
+            db.execute("SELECT deptID, name FROM department WHERE deptID = %s", (user_id,))
+            dept_result = db.fetchone()
+
+            if not dept_result:
+                db.execute("ROLLBACK")
+                return jsonify({'success': False, 'message': 'User not found'}), 404
+
+            dept_id, dept_name = dept_result['deptID'], dept_result['name']
+
             db.execute("DELETE FROM admin WHERE adminID = %s", (user_id,))
-            
-            # Delete from department table
             db.execute("DELETE FROM department WHERE deptID = %s", (dept_id,))
-            
-            # Delete from municipality/pwd tables if exists
-            db.execute("DELETE FROM municipality WHERE deptID = %s", (dept_id,))
-            db.execute("DELETE FROM pwd WHERE deptID = %s", (dept_id,))
 
-        return jsonify({'success': True, 'message': 'User deleted successfully'})
+            table_name = "municipality" if dept_name == "MUNICIPALITY" else "pwd"
+            db.execute(f"DELETE FROM {table_name} WHERE deptID = %s", (dept_id,))
+
+            db.execute("COMMIT")
+
+            socketio.emit('user_deleted', {'id': user_id})
+            return jsonify({'success': True, 'message': 'User deleted successfully'})
+
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': 'An error occurred'}), 500
 
 @app.route('/update-user/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
     try:
         data = request.get_json()
-        with Db() as db:
-            # Update admin table
-            db.execute("UPDATE admin SET email = %s, name = %s WHERE adminID = %s",
-                      (data['email'], data['role'], user_id))
-            
-            # Update department table
-            db.execute("""
-                UPDATE department d
-                JOIN admin a ON a.name = d.name
-                SET d.name = %s
-                WHERE a.adminID = %s
-            """, (data['role'], user_id))
+        if not data or 'email' not in data or 'role' not in data:
+            return jsonify({'success': False, 'message': 'Missing required fields'}), 400
 
+        email, role = data['email'], data['role']
+
+        with Db() as db:
+            db.execute("START TRANSACTION")
+            db.execute("UPDATE admin SET email = %s, name = %s WHERE adminID = %s", (email, role, user_id))
+            db.execute("UPDATE department d JOIN admin a ON a.name = d.name SET d.name = %s WHERE a.adminID = %s",
+                      (role, user_id))
+            db.execute("COMMIT")
+
+        socketio.emit('user_updated', {'id': user_id, 'email': email, 'role': role})
         return jsonify({'success': True, 'message': 'User updated successfully'})
+
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -381,6 +576,58 @@ def submit_feedback():
         return jsonify({'success': True, 'message': 'Feedback submitted successfully'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/issues/municipality', methods=['GET'])
+def get_municipality_issues():
+    try:
+        with Db() as db:
+            # Fetch issues assigned to the Municipality department
+            query = """
+                SELECT complaintID AS id, category, description, status
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+            """
+            db.execute(query)
+            issues = db.fetchall()
+            app.logger.info(f"Fetched Municipality issues: {issues}")
+        
+        return jsonify(issues)
+    except Exception as e:
+        app.logger.error(f"Error fetching Municipality issues: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch Municipality issues'}), 500
+
+@app.route('/api/issues/counts/municipality', methods=['GET'])
+def get_municipality_issue_counts():
+    try:
+        with Db() as db:
+            # Fetch count of Pending issues with category 'Waste Management'
+            query_pending = """
+                SELECT COUNT(*) AS pending_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+                AND category = 'Waste Management'
+                AND status = 'Pending'
+            """
+            db.execute(query_pending)
+            pending_count = db.fetchone()['pending_count']
+
+            # Fetch count of Resolved issues
+            query_resolved = """
+                SELECT COUNT(*) AS resolved_count
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+                AND status = 'Resolved'
+            """
+            db.execute(query_resolved)
+            resolved_count = db.fetchone()['resolved_count']
+
+        return jsonify({
+            'pending_count': pending_count,
+            'resolved_count': resolved_count
+        })
+    except Exception as e:
+        app.logger.error(f"Error fetching Municipality issue counts: {str(e)}", exc_info=True)
+        return jsonify({'pending_count': 0, 'resolved_count': 0}), 500
 
 if __name__ == '__main__':
     app.run(debug=True,)

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Municipality Dashboard - Public Assist Hub</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"> -->
 </head>
 <body>
     <!-- Municipality Dashboard -->
@@ -17,7 +17,7 @@
                     <div class="card-body">
                         <h5 class="card-title">Pending Issues</h5>
                         <p class="card-text">View and manage unresolved issues.</p>
-                        <a href="#" class="btn btn-warning">View Issues</a>
+                        <h1 class="display-4">{{ pending_count }}</h1>
                     </div>
                 </div>
             </div>
@@ -26,7 +26,7 @@
                     <div class="card-body">
                         <h5 class="card-title">Resolved Issues</h5>
                         <p class="card-text">Review issues that have been resolved.</p>
-                        <a href="#" class="btn btn-success">View Resolved</a>
+                        <h1 class="display-4">{{ resolved_count }}</h1>
                     </div>
                 </div>
             </div>
@@ -90,7 +90,24 @@
                     </tr>
                 </thead>
                 <tbody id="issue-list">
-                    <!-- Dynamic issue data will be inserted here -->
+                    {% for issue in issues %}
+                    <tr>
+                        <td>{{ issue.id }}</td>
+                        <td>{{ issue.category }}</td>
+                        <td>{{ issue.description }}</td>
+                        <td>
+                            <select class="form-control" onchange="updateStatus({{ issue.id }}, this.value)">
+                                <option value="Pending" {% if issue.status == "Pending" %}selected{% endif %}>Pending</option>
+                                <option value="In Progress" {% if issue.status == "In Progress" %}selected{% endif %}>In Progress</option>
+                                <option value="Resolved" {% if issue.status == "Resolved" %}selected{% endif %}>Resolved</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn btn-success" onclick="resolveIssue({{ issue.id }})">Resolve</button>
+                            <button class="btn btn-info" onclick="checkIssue({{ issue.id }})">Check</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
             <div id="pagination" class="text-center mt-3"></div>

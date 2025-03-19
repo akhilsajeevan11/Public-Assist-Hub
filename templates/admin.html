@@ -89,8 +89,9 @@
                     <table class="table table-striped">
                         <thead>
                             <tr>
+                                <th>Name</th>
                                 <th>Email</th>
-                                <th>Role</th>
+                                <th>Department ID</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -169,7 +170,11 @@
     </div>
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+
         // Function to fetch and display users
         function fetchUsers() {
             fetch('/get-users')
@@ -204,13 +209,66 @@
                     console.error('Error fetching users:', error);
                     document.getElementById('userTableBody').innerHTML = `
                         <tr>
-                            <td colspan="3, class="text-center text-danger">Error loading users</td>
+                            <td colspan="3" class="text-center text-danger">Error loading users</td>
                         </tr>
                     `;
                 });
         }
 
-        // Function to add user (modified to update table without refresh)
+        // Handle new user event
+        socket.on('user_added', (user) => {
+            const tbody = document.getElementById('userTableBody');
+            const newRow = `
+                <tr data-id="${user.id}">
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="editUser(${user.id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                    </td>
+                </tr>
+            `;
+            
+            if (tbody.innerHTML.includes('No users found')) {
+                tbody.innerHTML = newRow;
+            } else {
+                tbody.insertAdjacentHTML('beforeend', newRow);
+            }
+        });
+
+        // Handle user update event
+        socket.on('user_updated', (user) => {
+            const row = document.querySelector(`tr[data-id="${user.id}"]`);
+            if (row) {
+                row.innerHTML = `
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="editUser(${user.id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                    </td>
+                `;
+            }
+        });
+
+        // Handle user deletion event
+        socket.on('user_deleted', (data) => {
+            const row = document.querySelector(`tr[data-id="${data.id}"]`);
+            if (row) {
+                row.remove();
+            }
+            // If table is empty, show "No users found" message
+            const tbody = document.getElementById('userTableBody');
+            if (tbody.children.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="text-center">No users found</td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Function to add user
         function addUser(event) {
             event.preventDefault();
             const formData = new FormData(event.target);
@@ -220,7 +278,7 @@
                 role: formData.get('role')
             };
 
-            fetch('/admin', {
+            fetch('/admin/add-user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(data),
@@ -228,9 +286,9 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
                     event.target.reset();
-                    fetchUsers(); // Refresh user list
+                    window.location.reload();
+                    fetchOfficials();
                 } else {
                     alert("Error: " + data.message);
                 }
@@ -244,10 +302,7 @@
                 fetch(`/delete-user/${userId}`, {method: 'DELETE'})
                     .then(response => response.json())
                     .then(data => {
-                        if (data.success) {
-                            alert(data.message);
-                            fetchUsers();
-                        } else {
+                        if (!data.success) {
                             alert("Error: " + data.message);
                         }
                     });
@@ -291,10 +346,7 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    fetchUsers();
-                } else {
+                if (!data.success) {
                     alert("Error: " + data.message);
                 }
             });
@@ -302,6 +354,73 @@
 
         // Call fetchUsers when the page loads
         document.addEventListener('DOMContentLoaded', fetchUsers);
+
+        // Function to fetch and display officials
+        function fetchOfficials() {
+            fetch('/get-officials')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(officials => {
+                    const tbody = document.getElementById('userTableBody');
+                    if (Array.isArray(officials) && officials.length > 0) {
+                        tbody.innerHTML = officials.map(official => `
+                            <tr data-id="${official.officialID}">
+                                <td>${official.name}</td>
+                                <td>${official.email}</td>
+                                <td>${official.deptID}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteOfficial(${official.officialID})">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center">No officials found</td>
+                            </tr>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching officials:', error);
+                    document.getElementById('userTableBody').innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center text-danger">Error loading officials</td>
+                        </tr>
+                    `;
+                });
+        }
+
+        // Function to delete an official
+        function deleteOfficial(officialID) {
+            if (confirm('Are you sure you want to delete this official?')) {
+                fetch(`/delete-official/${officialID}`, {method: 'DELETE'})
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            fetchOfficials(); // Refresh the list
+                        } else {
+                            alert("Error: " + data.message);
+                        }
+                    })
+                    .catch(error => alert("Error deleting official: " + error.message));
+            }
+        }
+
+        // Call fetchOfficials when the user management tab is shown
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch officials when the page loads
+            fetchOfficials();
+
+            // Add event listener for tab changes
+            document.querySelector('a[data-toggle="tab"][href="#users"]').addEventListener('shown.bs.tab', function() {
+                fetchOfficials();
+            });
+        });
     </script>
 </body>
 </html>

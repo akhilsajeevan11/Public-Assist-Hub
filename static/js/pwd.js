@@ -43,7 +43,7 @@ function updateStatus(issueId, newStatus) {
         body: JSON.stringify({ status: newStatus })
     })
     .then(response => response.json())
-    .then(() => fetchIssues())
+    .then(() => window.location.reload()) // Reload the page to reflect changes
     .catch(error => console.error("Error updating status:", error));
 }
 
@@ -56,4 +56,36 @@ function deleteIssue(issueId) {
         .then(() => fetchIssues())
         .catch(error => console.error("Error deleting issue:", error));
     }
+}
+
+function resolveIssue(issueId) {
+    if (confirm("Are you sure you want to mark this issue as resolved?")) {
+        fetch(`/api/issues/${issueId}/resolve`, {
+            method: "PUT"
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Issue resolved successfully!");
+                window.location.reload();
+                // Update the status in the HTML without refreshing the page
+                const statusDropdown = document.querySelector(`select[onchange="updateStatus(${issueId}, this.value)"]`);
+                if (statusDropdown) {
+                    statusDropdown.value = "Resolved";
+                }
+            } else {
+                alert("Failed to resolve issue: " + data.message);
+            }
+        })
+        .catch(error => console.error("Error resolving issue:", error));
+    }
+}
+
+function checkIssue(issueId) {
+    fetch(`/api/issues/${issueId}/check`, {
+        method: "PUT"
+    })
+    .then(response => response.json())
+    .then(() => window.location.reload()) // Reload the page to reflect changes
+    .catch(error => console.error("Error checking issue:", error));
 }
