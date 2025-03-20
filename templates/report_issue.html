@@ -22,6 +22,7 @@
       async
       defer
     ></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <style></style>
   </head>
@@ -113,11 +114,57 @@
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="issuesTable"></tbody>
+          <tbody id="issuesTable">
+            <!-- Issues will be populated here dynamically -->
+          </tbody>
         </table>
       </div>
     </div>
     <!-- <script src="{{ url_for('static', filename='js/report_issue.js') }}"></script> -->
      <script src="../static/js/report_issue.js"></script>
+
+    <!-- Feedback Modal -->
+    <div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="feedbackModalLabel">Submit Feedback</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="feedbackForm">
+                        <div class="mb-3">
+                            <label for="comments" class="form-label">Comments</label>
+                            <textarea class="form-control" id="comments" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rating</label>
+                            <div class="rating">
+                                <span class="star" data-value="5">&#9733;</span>
+                                <span class="star" data-value="4">&#9733;</span>
+                                <span class="star" data-value="3">&#9733;</span>
+                                <span class="star" data-value="2">&#9733;</span>
+                                <span class="star" data-value="1">&#9733;</span>
+                                
+                                
+                                
+                                
+                            </div>
+                            <input type="hidden" id="rating" name="rating" required>
+                        </div>
+                        <input type="hidden" id="complaintID" name="complaintID">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="submitFeedback()">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-sm btn-primary" onclick="openFeedbackModal(${issue.complaintID})">
+        <i class="fas fa-comment"></i> Feedback
+    </button>
   </body>
 </html>

@@ -61,45 +61,35 @@ def login():
     if request.method == 'POST':
         try:
             data = request.get_json()
-            print("Data is..",data)
+            print("Data is..", data)
             if not data:
                 return jsonify({'error': 'No data received'}), 400
 
-            # Check if it's an OTP verification attempt
-            if 'otp' in data:
-                if 'otp' not in session:
-                    return jsonify({'error': 'OTP session expired'}), 400
-                
-                if data['otp'] == session['otp']:
-                    # Store in database before clearing session
-                    with Db() as db:
-                        query = """
-                            INSERT INTO users (email, otp)
-                            VALUES (%s, %s)
-                            ON DUPLICATE KEY UPDATE otp = %s
-                        """
-                        values = (session['email'], session['otp'], session['otp'])
-                        db.execute(query, values)
-                    
-                    session.pop('otp', None)
-                    return jsonify({'success': True, 'redirect': url_for('report_issue')})
-                return jsonify({'error': 'Invalid OTP'}), 400
-
             # Handle email submission
             email = data.get('email')
-            print("Email is...",email)
+            print("Email is...", email)
             if not email:
                 return jsonify({'error': 'Email is required'}), 400
 
             otp = random.randint(100000, 999999)
-            print("OTP is ...",otp)
+            print("OTP is ...", otp)
             session['otp'] = str(otp)
             session['email'] = email
 
+            # Store OTP in the database
+            with Db() as db:
+                query = """
+                    INSERT INTO users (email, otp)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE otp = %s
+                """
+                values = (email, otp, otp)
+                db.execute(query, values)
+
             try:
                 msg = Message('Your Login OTP',
-                            sender=app.config['MAIL_USERNAME'],
-                            recipients=[email])
+                              sender=app.config['MAIL_USERNAME'],
+                              recipients=[email])
                 msg.body = f'Your OTP is: {otp}'
                 mail.send(msg)
                 return jsonify({'message': 'OTP sent successfully'})
@@ -489,8 +479,29 @@ model = YOLO(os.environ.get('YOLO_MODEL_PATH'))
 
 @app.route('/report_issue', methods=['GET'])
 def report_issue():
-    # Render the report issue page
-    return render_template('report_issue.html')
+    # Get userID and email from query parameters
+    user_id = request.args.get('userID')
+    email = request.args.get('email')
+    print("USerID is....",user_id)
+    print("EMAIL iss...",email)
+    if not user_id or not email:
+        return redirect('/login')  # Redirect to login if parameters are missing
+
+    try:
+        with Db() as db:
+            # Verify the user exists in the users table
+            db.execute("SELECT userID FROM users WHERE email = %s AND userID = %s", (email, user_id))
+            user = db.fetchone()
+
+            if not user:
+                return redirect('/login')  # Redirect to login if user is invalid
+
+        # If the user exists, render the report issue page
+        return render_template('report_issue.html')
+
+    except Exception as e:
+        app.logger.error(f"Error verifying user: {str(e)}", exc_info=True)
+        return redirect('/login')
 
 @app.route('/submit_issue', methods=['POST'])
 def submit_issue():
@@ -503,7 +514,10 @@ def submit_issue():
         description = request.form['description']
         location = request.form['location']
         image = request.files.get('image')
-        email = session.get('email')
+        user_id = session.get('userID')  # Get userID from session
+
+        if not user_id:
+            raise ValueError("User not logged in. Please log in to report an issue.")
 
         # Process image and get prediction
         category = "General"  # Default category
@@ -554,7 +568,7 @@ def submit_issue():
                 (title, description, photo, geoLocation, category, userID, assignedDept)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            values = (title, description, filename, location, category, session.get('userID'), dept_id)
+            values = (title, description, filename, location, category, user_id, dept_id)
             db.execute(query, values)
 
             # Get the last inserted complaint ID
@@ -587,21 +601,32 @@ def submit_issue():
         return jsonify({'success': False, 'message': 'An unexpected error occurred.'}), 500
 
 
-@app.route('/get_issues')
+@app.route('/get_issues', methods=['GET'])
 def get_issues():
     try:
+        user_id = session.get('userID')  # Get userID from session
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User not logged in. Please log in to view issues.'}), 401
+
         with Db() as db:
-            query = """
-                SELECT * FROM complaint
-                WHERE email = %s
+            # Fetch issues for the logged-in user
+            db.execute("""
+                SELECT complaintID, title, status 
+                FROM complaint 
+                WHERE userID = %s
                 ORDER BY complaintID DESC
-            """
-            db.execute(query, (session.get('email'),))
+            """, (user_id,))
             issues = db.fetchall()
-            return jsonify(issues)
+
+        # Return issues as JSON
+        return jsonify({
+            'success': True,
+            'issues': issues
+        })
+
     except Exception as e:
-        app.logger.error(f"Error fetching issues: {str(e)}")
-        return jsonify([])
+        app.logger.error(f"Error fetching issues: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch issues.'}), 500
 
 @app.route('/get-users')
 def get_users():
@@ -684,23 +709,31 @@ def update_user(user_id):
 def submit_feedback():
     try:
         data = request.get_json()
-        email = session.get('email')
+        user_id = session.get('userID')
         complaint_id = data.get('complaintID')
         rating = data.get('rating')
         comments = data.get('comments')
 
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User not logged in.'}), 401
+
+        if not all([complaint_id, rating, comments]):
+            return jsonify({'success': False, 'message': 'All fields are required.'}), 400
+
         with Db() as db:
+            # Insert feedback into the feedback table
             query = """
-            INSERT INTO feedback 
-                (email, complaintID, rating, comments)
-            VALUES (%s, %s, %s, %s)
+                INSERT INTO feedback 
+                    (userID, complaintID, rating, comments)
+                VALUES (%s, %s, %s, %s)
             """
-            values = (email, complaint_id, rating, comments)
+            values = (user_id, complaint_id, rating, comments)
             db.execute(query, values)
 
-        return jsonify({'success': True, 'message': 'Feedback submitted successfully'})
+        return jsonify({'success': True, 'message': 'Feedback submitted successfully!'})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        app.logger.error(f"Error submitting feedback: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to submit feedback.'}), 500
 
 @app.route('/api/issues/municipality', methods=['GET'])
 def get_municipality_issues():
@@ -772,6 +805,80 @@ def get_pwd_issues():
     except Exception as e:
         app.logger.error(f"Error fetching PWD issues: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to fetch PWD issues'}), 500
+
+@app.route('/send_otp', methods=['POST'])
+def send_otp():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+
+        if not email:
+            return jsonify({'success': False, 'message': 'Email is required.'}), 400
+
+        with Db() as db:
+            # Check if the email exists in the users table
+            db.execute("SELECT userID FROM users WHERE email = %s", (email,))
+            user = db.fetchone()
+
+            # If the user doesn't exist, create a new user
+            if not user:
+                db.execute("INSERT INTO users (email) VALUES (%s)", (email,))
+                user_id = db.cursor.lastrowid
+            else:
+                user_id = user['userID']
+
+            # Generate a random OTP (e.g., 6 digits)
+            otp = ''.join(random.choices('0123456789', k=6))
+
+            # Update the OTP in the users table
+            db.execute("UPDATE users SET otp = %s WHERE userID = %s", (otp, user_id))
+
+            # TODO: Send the OTP to the user's email (implement email sending logic here)
+
+            return jsonify({
+                'success': True,
+                'message': 'OTP sent successfully!'
+            })
+
+    except Exception as e:
+        app.logger.error(f"Error sending OTP: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to send OTP.'}), 500
+
+@app.route('/verify_otp', methods=['POST'])
+def verify_otp():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        otp = data.get('otp')
+        print("VERIFY OTP DATA isss...", data)
+
+        if not email or not otp:
+            return jsonify({'success': False, 'message': 'Email and OTP are required.'}), 400
+
+        with Db() as db:
+            # Check if the OTP matches
+            db.execute("SELECT userID FROM users WHERE email = %s AND otp = %s", (email, otp))
+            user = db.fetchone()
+
+            if not user:
+                return jsonify({'success': False, 'message': 'Invalid OTP or email.'}), 401
+
+            # Clear the OTP after successful verification
+            db.execute("UPDATE users SET otp = NULL WHERE userID = %s", (user['userID'],))
+
+            # Set userID in session
+            session['userID'] = user['userID']
+
+            # Return userID and email in the redirect URL
+            return jsonify({
+                'success': True,
+                'message': 'OTP verified successfully!',
+                'redirect': f'/report_issue?userID={user["userID"]}&email={email}'
+            })
+
+    except Exception as e:
+        app.logger.error(f"Error verifying OTP: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to verify OTP.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True,)

@@ -2,34 +2,42 @@ body {
   background-color: #f8f9fa;
   font-family: "Poppins", sans-serif;
 }
+
 .container {
   max-width: 850px;
 }
+
 .card {
   border-radius: 12px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   border: none;
   background: #ffffff;
 }
+
 h2,
 h3 {
   color: #00ddb8;
   font-weight: bold;
 }
+
 .btn-primary {
   background-color: #00ddb8;
   border: none;
 }
+
 .btn-primary:hover {
   background-color: #00c4a5;
 }
+
 .btn-success {
   background-color: #00ddb8;
   border: none;
 }
+
 .btn-success:hover {
   background-color: #00c4a5;
 }
+
 #map {
   height: 280px;
   width: 100%;
@@ -37,13 +45,16 @@ h3 {
   margin-top: 8px;
   border: 1px solid #ddd;
 }
+
 .table thead {
   background: #00ddb8;
   color: white;
 }
+
 .feedback-section {
   display: none;
 }
+
 input,
 textarea,
 select {
@@ -59,12 +70,15 @@ select {
   transition: 0.3s;
   position: relative;
 }
+
 .upload-box:hover {
   background-color: #f8f9fa;
 }
+
 .upload-box input {
   display: none;
 }
+
 .upload-preview {
   margin-top: 10px;
   max-width: 150px;
@@ -72,6 +86,7 @@ select {
   display: none;
   border-radius: 5px;
 }
+
 .view-image {
   position: absolute;
   top: 5px;
@@ -83,6 +98,28 @@ select {
   cursor: pointer;
   display: none;
 }
+
 .view-image:hover {
   background: rgba(0, 0, 0, 0.8);
+}
+
+/* New Styles for Feedback Modal */
+.rating {
+  display: inline-block;
+  unicode-bidi: bidi-override;
+  direction: rtl;
+}
+
+.rating > span {
+  display: inline-block;
+  position: relative;
+  width: 1.1em;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #e4e5e9;
+}
+
+.rating > span:hover,
+.rating > span:hover ~ span {
+  color: #ffc107;
 }
