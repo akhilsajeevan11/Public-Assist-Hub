@@ -85,6 +85,7 @@ def login():
                 """
                 values = (email, otp, otp)
                 db.execute(query, values)
+                app.logger.info(f"OTP {otp} inserted/updated for email {email}")  # Log the OTP insertion
 
             try:
                 msg = Message('Your Login OTP',
@@ -862,9 +863,6 @@ def verify_otp():
 
             if not user:
                 return jsonify({'success': False, 'message': 'Invalid OTP or email.'}), 401
-
-            # Clear the OTP after successful verification
-            db.execute("UPDATE users SET otp = NULL WHERE userID = %s", (user['userID'],))
 
             # Set userID in session
             session['userID'] = user['userID']
