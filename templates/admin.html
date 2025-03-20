@@ -172,11 +172,34 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            console.log("DOM fully loaded");
+            fetchUsers(); // Fetch users on page load
+            fetchOfficials(); // Fetch officials on page load
+
+            // Add event listener for tab changes
+            document.querySelector('a[data-toggle="tab"][href="#users"]').addEventListener("shown.bs.tab", function () {
+                console.log("User Management tab shown");
+                fetchOfficials(); // Fetch officials when the "User Management" tab is shown
+            });
+        });
+
         // Initialize Socket.IO connection
         const socket = io();
 
+        socket.on("connect", () => {
+            console.log("Socket.IO connected");
+            fetchUsers(); // Fetch users after Socket.IO connection is established
+            fetchOfficials(); // Fetch officials after Socket.IO connection is established
+        });
+
+        socket.on("disconnect", () => {
+            console.log("Socket.IO disconnected");
+        });
+
         // Function to fetch and display users
         function fetchUsers() {
+            console.log("Fetching users...");
             fetch('/get-users')
                 .then(response => {
                     if (!response.ok) {
@@ -185,6 +208,7 @@
                     return response.json();
                 })
                 .then(users => {
+                    console.log("Users fetched:", users);
                     const tbody = document.getElementById('userTableBody');
                     if (Array.isArray(users) && users.length > 0) {
                         tbody.innerHTML = users.map(user => `
@@ -352,11 +376,9 @@
             });
         }
 
-        // Call fetchUsers when the page loads
-        document.addEventListener('DOMContentLoaded', fetchUsers);
-
         // Function to fetch and display officials
         function fetchOfficials() {
+            console.log("Fetching officials...");
             fetch('/get-officials')
                 .then(response => {
                     if (!response.ok) {
@@ -365,6 +387,7 @@
                     return response.json();
                 })
                 .then(officials => {
+                    console.log("Officials fetched:", officials);
                     const tbody = document.getElementById('userTableBody');
                     if (Array.isArray(officials) && officials.length > 0) {
                         tbody.innerHTML = officials.map(official => `
@@ -410,17 +433,6 @@
                     .catch(error => alert("Error deleting official: " + error.message));
             }
         }
-
-        // Call fetchOfficials when the user management tab is shown
-        document.addEventListener('DOMContentLoaded', function() {
-            // Fetch officials when the page loads
-            fetchOfficials();
-
-            // Add event listener for tab changes
-            document.querySelector('a[data-toggle="tab"][href="#users"]').addEventListener('shown.bs.tab', function() {
-                fetchOfficials();
-            });
-        });
     </script>
 </body>
 </html>

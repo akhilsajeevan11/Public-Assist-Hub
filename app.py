@@ -11,6 +11,7 @@ import torch
 from PIL import Image
 from ultralytics import YOLO
 from flask_socketio import SocketIO
+import traceback
 
 # Initialize app before other imports
 app = Flask(__name__)
@@ -112,6 +113,130 @@ def login():
 
 
 
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        print("Email received:", email)
+        
+        try:
+            if not email or not password:
+                return jsonify({"success": False, "error": "Email and password required"}), 400
+
+            # Determine role and redirect URL based on email domain
+            if '@admin' in email:
+                role = 'Admin'
+                redirect_url = url_for('admin')
+            elif '@pwd' in email:
+                role = 'PWD'
+                redirect_url = url_for('pwd')
+            elif '@municipality' in email:
+                role = 'Municipality'
+                redirect_url = url_for('municipality')
+            else:
+                return jsonify({"success": False, "error": "Invalid email domain"}), 400
+
+            with Db() as db:
+                try:
+                    # Handle admin login separately (only from Admin table)
+                    if role == 'Admin':
+                        db.execute(
+                            "SELECT adminID FROM admin WHERE email = %s AND password = %s",
+                            (email, password)
+                        )
+                        admin = db.fetchone()
+                        if not admin:
+                            return jsonify({"success": False, "error": "Invalid admin credentials"}), 401
+                        
+                        # Set admin session
+                        session.update({
+                            'admin_id': admin['adminID'],
+                            'role': 'Admin'
+                        })
+                        print("Admin login successful. Redirecting to:", redirect_url)
+                        return jsonify({
+                            "success": True,
+                            "redirect": redirect_url
+                        })
+
+                    # Handle PWD login (from PWD table)
+                    elif role == 'PWD':
+                        db.execute(
+                            "SELECT deptID FROM pwd WHERE email = %s AND password = %s",
+                            (email, password)
+                        )
+                        pwd = db.fetchone()
+                        if not pwd:
+                            return jsonify({"success": False, "error": "Invalid PWD credentials"}), 401
+                        
+                        # Set PWD session
+                        session.update({
+                            'dept_id': pwd['deptID'],
+                            'role': 'PWD'
+                        })
+                        print("PWD login successful. Redirecting to:", redirect_url)
+                        return jsonify({
+                            "success": True,
+                            "redirect": redirect_url
+                        })
+
+                    # Handle Municipality login (from Municipality table)
+                    elif role == 'Municipality':
+                        db.execute(
+                            "SELECT deptID FROM municipality WHERE email = %s AND password = %s",
+                            (email, password)
+                        )
+                        municipality = db.fetchone()
+                        if not municipality:
+                            return jsonify({"success": False, "error": "Invalid Municipality credentials"}), 401
+                        
+                        # Set Municipality session
+                        session.update({
+                            'dept_id': municipality['deptID'],
+                            'role': 'Municipality'
+                        })
+                        print("Municipality login successful. Redirecting to:", redirect_url)
+                        return jsonify({
+                            "success": True,
+                            "redirect": redirect_url
+                        })
+
+                    # Handle Officials login (from Officials table)
+                    else:
+                        db.execute(
+                            "SELECT officialID, deptID FROM officials WHERE email = %s AND password = %s",
+                            (email, password)
+                        )
+                        official = db.fetchone()
+                        if not official:
+                            return jsonify({"success": False, "error": "Invalid credentials"}), 401
+                        
+                        # Set Officials session
+                        session.update({
+                            'official_id': official['officialID'],
+                            'dept_id': official['deptID'],
+                            'role': 'Official'
+                        })
+                        return jsonify({
+                            "success": True,
+                            "redirect": redirect_url
+                        })
+
+                except Exception as db_error:
+                    db.rollback()
+                    print(f"Database error: {str(db_error)}")
+                    return jsonify({"success": False, "error": "Database operation failed"}), 500
+
+        except Exception as e:
+            print(f"General error: {traceback.format_exc()}")
+            return jsonify({"success": False, "error": "Internal server error"}), 500
+
+    # Render the login page for GET requests
+    return render_template('/login_pwd_municipality.html')
+
+
 
 @app.route('/municipality')
 def municipality():
@@ -168,7 +293,7 @@ def pwd():
             """
             db.execute(query)
             issues = db.fetchall()
-            app.logger.info(f"Fetched issues: {issues}")
+            app.logger.info(f"Fetched PWD issues: {issues}")
 
             # Fetch count of Pending issues with category 'Pothole'
             query_pending = """
@@ -194,7 +319,7 @@ def pwd():
         # Render the pwd.html template with the issues and counts data
         return render_template('pwd.html', issues=issues, pending_count=pending_count, resolved_count=resolved_count)
     except Exception as e:
-        app.logger.error(f"Error fetching issues: {str(e)}", exc_info=True)
+        app.logger.error(f"Error fetching PWD issues: {str(e)}", exc_info=True)
         return render_template('pwd.html', issues=[], pending_count=0, resolved_count=0)
 
 
@@ -628,6 +753,25 @@ def get_municipality_issue_counts():
     except Exception as e:
         app.logger.error(f"Error fetching Municipality issue counts: {str(e)}", exc_info=True)
         return jsonify({'pending_count': 0, 'resolved_count': 0}), 500
+
+@app.route('/api/issues/pwd', methods=['GET'])
+def get_pwd_issues():
+    try:
+        with Db() as db:
+            # Fetch issues assigned to the PWD department
+            query = """
+                SELECT complaintID AS id, category, description, status
+                FROM complaint
+                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Pwd')
+            """
+            db.execute(query)
+            issues = db.fetchall()
+            app.logger.info(f"Fetched PWD issues: {issues}")
+        
+        return jsonify(issues)
+    except Exception as e:
+        app.logger.error(f"Error fetching PWD issues: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch PWD issues'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True,)

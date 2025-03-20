@@ -3,12 +3,12 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function fetchIssues() {
-    fetch("/api/issues") // Replace with actual API endpoint
+    fetch("/api/issues/pwd")
         .then(response => response.json())
         .then(data => {
             displayIssues(data);
         })
-        .catch(error => console.error("Error fetching issues:", error));
+        .catch(error => console.error("Error fetching PWD issues:", error));
 }
 
 function displayIssues(issues) {
@@ -28,7 +28,10 @@ function displayIssues(issues) {
                     <option value="Resolved" ${issue.status === "Resolved" ? "selected" : ""}>Resolved</option>
                 </select>
             </td>
-            <td><button class="btn btn-danger" onclick="deleteIssue(${issue.id})">Delete</button></td>
+            <td>
+                <button class="btn btn-success" onclick="resolveIssue(${issue.id})">Resolve</button>
+                <button class="btn btn-info" onclick="checkIssue(${issue.id})">Check</button>
+            </td>
         `;
         issueList.appendChild(row);
     });
@@ -43,7 +46,7 @@ function updateStatus(issueId, newStatus) {
         body: JSON.stringify({ status: newStatus })
     })
     .then(response => response.json())
-    .then(() => window.location.reload()) // Reload the page to reflect changes
+    .then(() => window.location.reload())
     .catch(error => console.error("Error updating status:", error));
 }
 
@@ -64,19 +67,7 @@ function resolveIssue(issueId) {
             method: "PUT"
         })
         .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert("Issue resolved successfully!");
-                window.location.reload();
-                // Update the status in the HTML without refreshing the page
-                const statusDropdown = document.querySelector(`select[onchange="updateStatus(${issueId}, this.value)"]`);
-                if (statusDropdown) {
-                    statusDropdown.value = "Resolved";
-                }
-            } else {
-                alert("Failed to resolve issue: " + data.message);
-            }
-        })
+        .then(() => window.location.reload())
         .catch(error => console.error("Error resolving issue:", error));
     }
 }
@@ -86,6 +77,6 @@ function checkIssue(issueId) {
         method: "PUT"
     })
     .then(response => response.json())
-    .then(() => window.location.reload()) // Reload the page to reflect changes
+    .then(() => window.location.reload())
     .catch(error => console.error("Error checking issue:", error));
 }

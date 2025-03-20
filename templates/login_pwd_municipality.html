@@ -40,7 +40,7 @@
         <div class="col-md-6 col-lg-4">
           <div class="login-card p-4">
             <h3 class="text-center mb-4">Login</h3>
-            <form>
+            <form id="loginForm">
               <div class="mb-3">
                 <label for="email" class="form-label">Email address</label>
                 <input
@@ -71,5 +71,34 @@
         </div>
       </div>
     </div>
+
+    <script>
+      document.getElementById('loginForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        fetch('/admin_login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              window.location.href = data.redirect; // Redirect to the appropriate page
+            } else {
+              alert(data.error || 'Login failed');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred during login');
+          });
+      });
+    </script>
   </body>
 </html>
