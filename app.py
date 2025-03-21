@@ -7,9 +7,9 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import mysql.connector
 from db_connection import Db 
-import torch
+# import torch
 from PIL import Image
-from ultralytics import YOLO
+# from ultralytics import YOLO
 from flask_socketio import SocketIO
 import traceback
 
@@ -476,7 +476,7 @@ def delete_official(officialID):
         return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
 
 # Update the model loading code to:
-model = YOLO(os.environ.get('YOLO_MODEL_PATH')) 
+# model = YOLO(os.environ.get('YOLO_MODEL_PATH')) 
 
 @app.route('/report_issue', methods=['GET'])
 def report_issue():
