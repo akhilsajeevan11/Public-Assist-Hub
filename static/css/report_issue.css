@@ -9,7 +9,7 @@ body, html {
 
 .main-container {
   display: grid;
-  background-color: black;
+
   grid-template-columns: 50% 50%;
   grid-template-rows: 60% 40%;
   gap: 20px;

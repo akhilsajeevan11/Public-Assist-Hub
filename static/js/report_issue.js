@@ -15,20 +15,20 @@ function previewImage(event) {
   }
 }
 
-function clearImagePreview() {
-  const output = document.getElementById("preview");
-  output.src = "";
-  output.style.display = "none";
-  document.getElementById("viewImageBtn").style.display = "none";
-  document.getElementById("issueImage").value = ""; // Clear the file input
-}
+// function clearImagePreview() {
+//   const output = document.getElementById("preview");
+//   output.src = "";
+//   output.style.display = "none";
+//   document.getElementById("viewImageBtn").style.display = "none";
+//   document.getElementById("issueImage").value = ""; // Clear the file input
+// }
 
-function viewImage() {
-  const imgSrc = document.getElementById("preview").src;
-  if (imgSrc) {
-    window.open(imgSrc, "_blank");
-  }
-}
+// function viewImage() {
+//   const imgSrc = document.getElementById("preview").src;
+//   if (imgSrc) {
+//     window.open(imgSrc, "_blank");
+//   }
+// }
 
 // Map and Location Autocomplete
 let map, marker, autocomplete;
@@ -133,7 +133,7 @@ document.getElementById("issueForm").addEventListener("submit", function (event)
         if (data.success) {
             alert(data.message); // Show success message
             document.getElementById('issueForm').reset(); // Reset the form
-            clearImagePreview(); // Clear the image preview
+            // clearImagePreview(); // Clear the image preview
             loadIssues(); // Refresh the issues list
             window.location.reload();
         } else {
