@@ -7,9 +7,9 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import mysql.connector
 from db_connection import Db 
-# import torch
+import torch
 from PIL import Image
-# from ultralytics import YOLO
+from ultralytics import YOLO
 from flask_socketio import SocketIO
 import traceback
 
@@ -19,6 +19,9 @@ app = Flask(__name__)
 
 
 load_dotenv()  # Load environment variables first
+
+yolo_model_path = os.getenv("YOLO_MODEL_PATH")
+model=YOLO(yolo_model_path)
 
 app.secret_key = os.environ.get('SECRET_KEY')
 
@@ -351,10 +354,28 @@ def check_issue(issue_id):
         app.logger.error(f"Error checking issue: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to check issue'}), 500
 
-@app.route('/admin', methods=['GET', 'POST'])
+# @app.route('/admin', methods=['GET', 'POST'])
+# def admin():
+#     # if request.method == 'GET':
+#     return render_template('admin.html')
+
+@app.route('/admin', methods=['GET'])
 def admin():
-    # if request.method == 'GET':
-    return render_template('admin.html')
+    try:
+        with Db() as db:
+            # Fetch complaintID, category, description, and status from the complaint table
+            db.execute("""
+                SELECT complaintID, category, description, status
+                FROM complaint
+            """)
+            complaints = db.fetchall()
+
+        # Pass the data to the template
+        return render_template('admin.html', complaints=complaints)
+
+    except Exception as e:
+        app.logger.error(f"Error fetching complaint data: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Error fetching complaint data'}), 500
 
 
 @app.route('/admin/add-user', methods=['POST'])

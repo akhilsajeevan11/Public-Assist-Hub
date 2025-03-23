@@ -105,68 +105,32 @@
                 <!-- Reported Issues -->
                 <div id="issues" class="tab-pane fade">
                     <h2>Reported Issues</h2>
-                    <ul class="nav nav-tabs">
-                        <li class="nav-item">
-                            <a class="nav-link active" data-toggle="tab" href="#municipality">Municipality</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#pwd">PWD</a>
-                        </li>
-                    </ul>
-                    <div class="tab-content mt-3">
-                        <div id="municipality" class="tab-pane fade show active">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Description</th>
-                                        <th>Category</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>101</td>
-                                        <td>Garbage not collected</td>
-                                        <td>Waste Management</td>
-                                        <td><span class="badge badge-warning">Pending</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-danger">Delete</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div id="pwd" class="tab-pane fade">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Description</th>
-                                        <th>Category</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>102</td>
-                                        <td>Pothole on Main Street</td>
-                                        <td>Road Safety</td>
-                                        <td><span class="badge badge-warning">Pending</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-danger">Delete</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for complaint in complaints %}
+                                <tr>
+                                    <td>{{ complaint.complaintID }}</td>
+                                    <td>{{ complaint.category }}</td>
+                                    <td>{{ complaint.description }}</td>
+                                    <td><span class="badge badge-warning">{{ complaint.status }}</span></td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4">No complaints found.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-            </main>
-        </div>
-    </div>
+
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
