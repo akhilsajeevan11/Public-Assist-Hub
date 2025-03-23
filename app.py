@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash  # <-- Add render_template, request, redirect, url_for, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash  
 import random
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
