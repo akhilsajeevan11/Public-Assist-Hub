@@ -4,7 +4,7 @@ import random
 from flask_mail import Mail, Message
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import mysql.connector
 from db_connection import Db 
 import torch
@@ -51,6 +51,15 @@ def allowed_file(filename):
 # Initialize SocketIO after creating your Flask app
 socketio = SocketIO(app)
 
+@app.before_request
+def require_login():
+    # List of routes that do not require authentication
+    allowed_routes = ['login', 'verify_otp', 'static']
+    
+    # Check if the user is logged in
+    if request.endpoint not in allowed_routes and 'userID' not in session:
+        return redirect(url_for('login'))
+
 @app.route('/')
 def index():
     return render_template('home.html') 
@@ -74,17 +83,21 @@ def login():
             if not email:
                 return jsonify({'error': 'Email is required'}), 400
 
+            # Validate email domain
+            if not email.endswith('@gmail.com'):
+                return jsonify({'error': 'Only Gmail addresses are allowed.'}), 400
+
             otp = random.randint(100000, 999999)
             print("OTP is ...", otp)
             session['otp'] = str(otp)
             session['email'] = email
 
-            # Store OTP in the database
+            # Store OTP and timestamp in the database
             with Db() as db:
                 query = """
-                    INSERT INTO users (email, otp)
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE otp = %s
+                    INSERT INTO users (email, otp, otp_timestamp)
+                    VALUES (%s, %s, NOW())
+                    ON DUPLICATE KEY UPDATE otp = %s, otp_timestamp = NOW()
                 """
                 values = (email, otp, otp)
                 db.execute(query, values)
@@ -370,12 +383,36 @@ def admin():
             """)
             complaints = db.fetchall()
 
+            # Fetch total number of users
+            db.execute("SELECT COUNT(*) AS total_users FROM users")
+            total_users = db.fetchone()['total_users']
+
+            # Fetch count of active issues (status = 'Pending' or 'In Progress')
+            db.execute("""
+                SELECT COUNT(*) AS active_issues
+                FROM complaint
+                WHERE status IN ('Pending', 'In Progress')
+            """)
+            active_issues = db.fetchone()['active_issues']
+
+            # Fetch count of resolved issues (status = 'Resolved')
+            db.execute("""
+                SELECT COUNT(*) AS resolved_issues
+                FROM complaint
+                WHERE status = 'Resolved'
+            """)
+            resolved_issues = db.fetchone()['resolved_issues']
+
         # Pass the data to the template
-        return render_template('admin.html', complaints=complaints)
+        return render_template('admin.html', 
+                             complaints=complaints,
+                             total_users=total_users,
+                             active_issues=active_issues,
+                             resolved_issues=resolved_issues)
 
     except Exception as e:
-        app.logger.error(f"Error fetching complaint data: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'message': 'Error fetching complaint data'}), 500
+        app.logger.error(f"Error fetching admin data: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Error fetching admin data'}), 500
 
 
 @app.route('/admin/add-user', methods=['POST'])
@@ -576,6 +613,7 @@ def submit_issue():
             else:
                 raise ValueError("Invalid category. Please provide a valid issue category.")
 
+            # Fetch department ID
             db.execute("SELECT deptID FROM department WHERE name = %s", (dept_name,))
             dept_result = db.fetchone()
             if not dept_result:
@@ -763,9 +801,10 @@ def get_municipality_issues():
         with Db() as db:
             # Fetch issues assigned to the Municipality department
             query = """
-                SELECT complaintID AS id, category, description, status
-                FROM complaint
-                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
+                SELECT c.complaintID AS id, c.category, c.description, c.status
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Municipality'
             """
             db.execute(query)
             issues = db.fetchall()
@@ -783,20 +822,23 @@ def get_municipality_issue_counts():
             # Fetch count of Pending issues with category 'Waste Management'
             query_pending = """
                 SELECT COUNT(*) AS pending_count
-                FROM complaint
-                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
-                AND category = 'Waste Management'
-                AND status = 'Pending'
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Municipality'
+                AND c.category = 'waste'
+                AND c.status = 'Pending'
             """
             db.execute(query_pending)
             pending_count = db.fetchone()['pending_count']
+            print("Pending Counnts....",pending_count)
 
             # Fetch count of Resolved issues
             query_resolved = """
                 SELECT COUNT(*) AS resolved_count
-                FROM complaint
-                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Municipality')
-                AND status = 'Resolved'
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Municipality'
+                AND c.status = 'Resolved'
             """
             db.execute(query_resolved)
             resolved_count = db.fetchone()['resolved_count']
@@ -815,9 +857,10 @@ def get_pwd_issues():
         with Db() as db:
             # Fetch issues assigned to the PWD department
             query = """
-                SELECT complaintID AS id, category, description, status
-                FROM complaint
-                WHERE assignedDept = (SELECT deptID FROM department WHERE name = 'Pwd')
+                SELECT c.complaintID AS id, c.category, c.description, c.status
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Pwd'
             """
             db.execute(query)
             issues = db.fetchall()
@@ -878,12 +921,21 @@ def verify_otp():
             return jsonify({'success': False, 'message': 'Email and OTP are required.'}), 400
 
         with Db() as db:
-            # Check if the OTP matches
-            db.execute("SELECT userID FROM users WHERE email = %s AND otp = %s", (email, otp))
+            # Fetch the OTP and its timestamp from the database
+            db.execute("""
+                SELECT userID, otp_timestamp
+                FROM users
+                WHERE email = %s AND otp = %s
+            """, (email, otp))
             user = db.fetchone()
 
             if not user:
                 return jsonify({'success': False, 'message': 'Invalid OTP or email.'}), 401
+
+            # Check if the OTP is expired (older than 5 minutes)
+            otp_timestamp = user['otp_timestamp']
+            if datetime.now() - otp_timestamp > timedelta(minutes=5):
+                return jsonify({'success': False, 'message': 'OTP has expired.'}), 401
 
             # Set userID in session
             session['userID'] = user['userID']
@@ -899,5 +951,103 @@ def verify_otp():
         app.logger.error(f"Error verifying OTP: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to verify OTP.'}), 500
 
+@app.route('/api/issues/counts/pwd', methods=['GET'])
+def get_pwd_issue_counts():
+    try:
+        with Db() as db:
+            # Fetch count of Pending issues with category 'Pothole'
+            query_pending = """
+                SELECT COUNT(*) AS pending_count
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Pwd'
+                AND c.category = 'pothole'
+                AND c.status = 'Pending'
+            """
+            db.execute(query_pending)
+            pending_count = db.fetchone()['pending_count']
+
+            # Fetch count of Resolved issues
+            query_resolved = """
+                SELECT COUNT(*) AS resolved_count
+                FROM complaint c
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'Pwd'
+                AND c.status = 'Resolved'
+            """
+            db.execute(query_resolved)
+            resolved_count = db.fetchone()['resolved_count']
+
+        return jsonify({
+            'pending_count': pending_count,
+            'resolved_count': resolved_count
+        })
+    except Exception as e:
+        app.logger.error(f"Error fetching PWD issue counts: {str(e)}", exc_info=True)
+        return jsonify({'pending_count': 0, 'resolved_count': 0}), 500
+
+@app.route('/api/feedback/pwd', methods=['GET'])
+def get_pwd_feedback():
+    try:
+        with Db() as db:
+            # Fetch feedback for issues assigned to the PWD department
+            query = """
+                SELECT f.feedbackID, f.rating, f.comments, c.complaintID, c.title, u.email
+                FROM feedback f
+                JOIN complaint c ON f.complaintID = c.complaintID
+                JOIN users u ON f.userID = u.userID
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'PWD' AND f.userID IS NOT NULL
+            """
+            db.execute(query)
+            feedback = db.fetchall()
+        
+        return jsonify(feedback)
+    except Exception as e:
+        app.logger.error(f"Error fetching PWD feedback: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch feedback'}), 500
+
+
+
+
+@app.route('/api/feedback/municipality', methods=['GET'])
+def get_municipality_feedback():
+    try:
+        with Db() as db:
+            # Fetch feedback for issues assigned to the PWD department
+            query = """
+                SELECT f.feedbackID, f.rating, f.comments, c.complaintID, c.title, u.email
+                FROM feedback f
+                JOIN complaint c ON f.complaintID = c.complaintID
+                JOIN users u ON f.userID = u.userID
+                JOIN department d ON c.assignedDept = d.deptID
+                WHERE d.name = 'MUNICIPALITY' AND f.userID IS NOT NULL
+            """
+            db.execute(query)
+            feedback = db.fetchall()
+        
+        return jsonify(feedback)
+    except Exception as e:
+        app.logger.error(f"Error fetching PWD feedback: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Failed to fetch feedback'}), 500
+
+
+
+@app.route('/logout', methods=['GET'])
+def logout():
+    # Clear the session
+    session.clear()
+    # Redirect to the login page
+    return redirect(url_for('login'))
+
+@app.after_request
+def add_no_cache_headers(response):
+    # Add headers to disable caching
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
 if __name__ == '__main__':
     app.run(debug=True,)
+    

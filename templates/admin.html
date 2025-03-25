@@ -38,7 +38,7 @@
                         <div class="col-md-4">
                             <div class="card shadow-sm">
                                 <div class="card-body text-center">
-                                    <h5 class="card-title">150</h5>
+                                    <h5 class="card-title">{{ total_users }}</h5>
                                     <p class="card-text">Total Users</p>
                                 </div>
                             </div>
@@ -46,7 +46,7 @@
                         <div class="col-md-4">
                             <div class="card shadow-sm">
                                 <div class="card-body text-center">
-                                    <h5 class="card-title">45</h5>
+                                    <h5 class="card-title">{{ active_issues }}</h5>
                                     <p class="card-text">Active Issues</p>
                                 </div>
                             </div>
@@ -54,7 +54,7 @@
                         <div class="col-md-4">
                             <div class="card shadow-sm">
                                 <div class="card-body text-center">
-                                    <h5 class="card-title">120</h5>
+                                    <h5 class="card-title">{{ resolved_issues }}</h5>
                                     <p class="card-text">Resolved Issues</p>
                                 </div>
                             </div>
@@ -274,8 +274,8 @@
             .then(data => {
                 if (data.success) {
                     event.target.reset();
-                    window.location.reload();
                     fetchOfficials();
+                    window.location.reload();
                 } else {
                     alert("Error: " + data.message);
                 }

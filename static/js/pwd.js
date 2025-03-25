@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     fetchIssues();
+    refreshCounts();
+    document.getElementById("view-feedback-btn").addEventListener("click", viewFeedback);
 });
 
 function fetchIssues() {
@@ -79,4 +81,49 @@ function checkIssue(issueId) {
     .then(response => response.json())
     .then(() => window.location.reload())
     .catch(error => console.error("Error checking issue:", error));
+}
+
+function refreshCounts() {
+    fetch("/api/issues/counts/pwd")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("pending-count").textContent = data.pending_count;
+            document.getElementById("resolved-count").textContent = data.resolved_count;
+        })
+        .catch(error => console.error("Error refreshing counts:", error));
+}
+
+function viewFeedback() {
+    fetch("/api/feedback/pwd")
+        .then(response => response.json())
+        .then(data => {
+            const feedbackList = document.getElementById("feedback-list");
+            feedbackList.innerHTML = "";
+
+            if (data.length === 0) {
+                // Display a message if no feedback is found
+                feedbackList.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center">No feedback found for PWD issues.</td>
+                    </tr>
+                `;
+            } else {
+                // Populate the table with feedback data
+                data.forEach(feedback => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${feedback.complaintID}</td>
+                        <td>${feedback.email}</td>
+                        <td>${feedback.rating}</td>
+                        <td>${feedback.comments}</td>
+                    `;
+                    feedbackList.appendChild(row);
+                });
+            }
+
+            // Show the modal
+            const feedbackModal = new bootstrap.Modal(document.getElementById('feedbackModal'));
+            feedbackModal.show();
+        })
+        .catch(error => console.error("Error fetching feedback:", error));
 }

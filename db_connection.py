@@ -38,6 +38,7 @@ class Db:
         Execute queries. Automatically commits if modifying the database.
         """
         try:
+            self._clear_unread_results()  # Clear unread results before executing a new query
             self.cursor.execute(query, params or ())
             if query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
                 self.connection.commit()  # Commit only for modifying queries
@@ -52,6 +53,7 @@ class Db:
         Execute a SELECT query and return self for further fetching.
         """
         try:
+            self._clear_unread_results()  # Clear unread results before executing a new query
             self.cursor.execute(query, params or ())
             return self
         except mysql.connector.Error as err:
