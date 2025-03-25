@@ -32,7 +32,6 @@ function displayIssues(issues) {
             </td>
             <td>
                 <button class="btn btn-success" onclick="resolveIssue(${issue.id})">Resolve</button>
-                <button class="btn btn-info" onclick="checkIssue(${issue.id})">Check</button>
             </td>
         `;
         issueList.appendChild(row);

@@ -54,7 +54,7 @@ socketio = SocketIO(app)
 @app.before_request
 def require_login():
     # List of routes that do not require authentication
-    allowed_routes = ['login', 'verify_otp', 'static']
+    allowed_routes = ['index','login', 'verify_otp', 'static']
     
     # Check if the user is logged in
     if request.endpoint not in allowed_routes and 'userID' not in session:
@@ -1036,15 +1036,15 @@ def logout():
     # Clear the session
     session.clear()
     # Redirect to the login page
-    return redirect(url_for('login'))
+    return redirect(url_for('index'))
 
-@app.after_request
-def add_no_cache_headers(response):
-    # Add headers to disable caching
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
-    return response
+# @app.after_request
+# def add_no_cache_headers(response):
+#     # Add headers to disable caching
+#     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+#     response.headers['Pragma'] = 'no-cache'
+#     response.headers['Expires'] = '-1'
+#     return response
 
 if __name__ == '__main__':
     app.run(debug=True,)
