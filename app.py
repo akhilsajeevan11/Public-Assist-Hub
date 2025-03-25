@@ -367,10 +367,7 @@ def check_issue(issue_id):
         app.logger.error(f"Error checking issue: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'Failed to check issue'}), 500
 
-# @app.route('/admin', methods=['GET', 'POST'])
-# def admin():
-#     # if request.method == 'GET':
-#     return render_template('admin.html')
+
 
 @app.route('/admin', methods=['GET'])
 def admin():
