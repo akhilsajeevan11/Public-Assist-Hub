@@ -139,7 +139,10 @@ h2, h4 {
 </style>
 <body>
     <section class="dashboard container-fluid py-4" style="background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); min-height: 100vh;">
-        <h2 class="text-center mb-4 text-white">Municipality Dashboard</h2>
+        <div class="d-flex justify-content-between align-items-center mb-3 px-3">
+            <h2 class="text-white">Municipality Dashboard</h2>
+            <a href="/logout" class="btn btn-danger">Logout</a>
+        </div>
         <div class="row px-3">
             <!-- Left section: Cards and Table -->
             <div class="col-12">
@@ -204,7 +207,6 @@ h2, h4 {
                                         </td>
                                         <td>
                                             <button class="btn btn-success btn-sm" onclick="resolveIssue({{ issue.id }})">Resolve</button>
-                                            <button class="btn btn-info btn-sm" onclick="checkIssue({{ issue.id }})">Check</button>
                                         </td>
                                     </tr>
                                     {% endfor %}

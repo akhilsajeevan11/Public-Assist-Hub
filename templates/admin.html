@@ -13,21 +13,27 @@
         <div class="row">
             <!-- Sidebar -->
             <nav class="col-md-2 d-md-block sidebar bg-dark text-light">
-                <div class="sidebar-sticky p-3">
-                    <h4 class="text-center">Public Assist Hub</h4>
-                    <ul class="nav flex-column mt-4">
-                        <li class="nav-item">
-                            <a class="nav-link active" data-toggle="tab" href="#dashboard">Dashboard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#users">User Management</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#issues">Reported Issues</a>
-                        </li>
-                    </ul>
+                <div class="sidebar-sticky p-3 d-flex flex-column justify-content-between" style="height: 100vh;">
+                    <div>
+                        <h4 class="text-center">Public Assist Hub</h4>
+                        <ul class="nav flex-column mt-4">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-toggle="tab" href="#dashboard">Dashboard</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-toggle="tab" href="#users">User Management</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-toggle="tab" href="#issues">Reported Issues</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="text-center mb-5">
+                        <a href="/logout" class="btn btn-danger w-100">Logout</a>
+                    </div>
                 </div>
             </nav>
+            
 
             <!-- Main Content -->
             <main class="col-md-10 tab-content p-4">

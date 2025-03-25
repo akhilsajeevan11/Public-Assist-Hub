@@ -60,6 +60,7 @@ def require_login():
     if request.endpoint not in allowed_routes and 'userID' not in session:
         return redirect(url_for('login'))
 
+
 @app.route('/')
 def index():
     return render_template('home.html') 
