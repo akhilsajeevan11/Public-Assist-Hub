@@ -434,16 +434,30 @@ def admin_add_user():
         if role not in ["MUNICIPALITY", "PWD"]:
             return jsonify({'success': False, 'message': 'Invalid role'}), 400
 
+        # Assign fixed deptID based on role
+        dept_id = 2 if role == "MUNICIPALITY" else 1
+
         with Db() as db:
             db.execute("START TRANSACTION")
 
             try:
-                # Insert into department table
-                db.execute("INSERT INTO department (name) VALUES (%s)", (role,))
-                dept_id = db.cursor.lastrowid
+                # Check if the department already exists
+                db.execute("SELECT deptID FROM department WHERE deptID = %s", (dept_id,))
+                existing_department = db.fetchone()
+
+                # If the department doesn't exist, insert it
+                if not existing_department:
+                    db.execute("INSERT INTO department (deptID, name) VALUES (%s, %s)", (dept_id, role))
+
+                # Check if the user already exists in the role-specific table
+                table_name = "municipality" if role == "MUNICIPALITY" else "pwd"
+                db.execute(f"SELECT deptID FROM {table_name} WHERE deptID = %s", (dept_id,))
+                existing_user = db.fetchone()
+
+                if existing_user:
+                    return jsonify({'success': False, 'message': f'{role} user with deptID {dept_id} already exists'}), 400
 
                 # Insert into role-specific table (municipality or pwd)
-                table_name = "municipality" if role == "MUNICIPALITY" else "pwd"
                 db.execute(
                     f"INSERT INTO {table_name} (deptID, name, email, password) VALUES (%s, %s, %s, %s)",
                     (dept_id, role, email, password)
