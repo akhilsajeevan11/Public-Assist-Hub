@@ -17,37 +17,43 @@ document.addEventListener("DOMContentLoaded", function () {
   // Modified Send OTP handler
   sendOtpBtn.addEventListener("click", async function () {
     const email = emailInput.value.trim();
-    
+  
     if (!isValidEmail(email)) {
       alert("Please enter a valid email address (e.g., user@example.com)");
       return;
     }
-
+  
+    // Show loading spinner
+    sendOtpBtn.classList.add("loading");
+  
     try {
-      const response = await fetch(`/login`, {  // Changed to match your Flask route
+      const response = await fetch(`/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-
+  
       const data = await response.json();
-      
+  
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+        throw new Error(data.error || "Failed to send OTP");
       }
-
+  
       // Your existing UI updates
-      alert(data.message);
+      showToast(data.message, "success");
       otpRequestForm.style.display = "none";
       otpVerifyForm.style.display = "block";
-      otpInput.focus();  // Added focus to OTP field
-
+      otpInput.focus();
     } catch (error) {
+      showToast("Something went wrong!", "danger");
       console.error("Error:", error);
       alert(error.message);
+    } finally {
+      // Remove loading spinner no matter what happens
+      sendOtpBtn.classList.remove("loading");
     }
   });
-
+  
   // Modified Verify OTP handler
   verifyOtpBtn.addEventListener("click", async function () {
     const email = emailInput.value.trim();
@@ -89,3 +95,23 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 });
+
+
+// Toast message function
+
+function showToast(message, type = "success") {
+  const toastEl = document.getElementById("toastMessage");
+  const toastBody = document.getElementById("toastBody");
+
+  toastBody.textContent = message;
+  toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+
+  const toast = new bootstrap.Toast(toastEl,{delay:3000});
+  toast.show();
+}
+
+
+window.history.pushState(null, "", window.location.href);  
+window.onpopstate = function () {  
+  window.history.pushState(null, "", window.location.href);  
+};

@@ -1046,6 +1046,8 @@ def logout():
     # Redirect to the root URL
     return redirect(url_for('index'))
 
+
+
 @app.after_request
 def add_no_cache_headers(response):
     # Add headers to disable caching

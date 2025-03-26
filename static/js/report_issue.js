@@ -300,3 +300,8 @@ function submitFeedback() {
         alert('Error submitting feedback: ' + error.message);
     });
 }
+
+window.history.pushState(null, "", window.location.href);  
+window.onpopstate = function () {  
+  window.history.pushState(null, "", window.location.href);  
+};

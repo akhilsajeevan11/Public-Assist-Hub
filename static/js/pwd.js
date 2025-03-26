@@ -126,3 +126,8 @@ function viewFeedback() {
         })
         .catch(error => console.error("Error fetching feedback:", error));
 }
+
+window.history.pushState(null, "", window.location.href);  
+window.onpopstate = function () {  
+  window.history.pushState(null, "", window.location.href);  
+};
