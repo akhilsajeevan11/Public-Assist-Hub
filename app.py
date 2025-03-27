@@ -12,6 +12,7 @@ from PIL import Image
 from ultralytics import YOLO
 from flask_socketio import SocketIO
 import traceback
+import logging
 
 # Initialize app before other imports
 app = Flask(__name__)
@@ -51,14 +52,12 @@ def allowed_file(filename):
 # Initialize SocketIO after creating your Flask app
 socketio = SocketIO(app)
 
-# @app.before_request
-# def require_login():
-#     # List of routes that do not require authentication
-#     allowed_routes = ['login', 'verify_otp', 'static']
-    
-#     # Check if the user is logged in
-#     if request.endpoint not in allowed_routes and 'userID' not in session:
-#         return redirect(url_for('index'))
+@app.before_request
+def check_login():
+    # List of routes that don't require authentication
+    allowed_routes = ['admin_login','login', 'verify_otp', 'static', 'index']
+    if request.endpoint not in allowed_routes and 'userID' not in session:
+        return redirect(url_for('login'))
 
 @app.before_request
 def set_session_permanent():
@@ -1050,24 +1049,15 @@ def get_municipality_feedback():
 
 @app.route('/logout', methods=['GET'])
 def logout():
-    # Clear the session
-    session.clear()
-    # Invalidate the session cookie
-    session.pop('userID', None)
-    session.pop('admin_id', None)
-    session.pop('dept_id', None)
-    session.pop('role', None)
-    # Redirect to the root URL
-    return redirect(url_for('index'))
-
-
+    session.clear()  # Clear the session
+    return redirect(url_for('login'))  # Redirect to the login page
 
 @app.after_request
 def add_no_cache_headers(response):
-    # Add headers to disable caching
+    # Add headers to prevent caching
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
+    response.headers['Expires'] = '0'
     return response
 
 if __name__ == '__main__':
