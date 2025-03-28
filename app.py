@@ -614,6 +614,12 @@ def submit_issue():
             if results and len(results[0]) > 0:
                 class_id = int(results[0].boxes.cls[0])
                 category = model.names[class_id]
+            else:
+                # If no prediction is made, return a popup message
+                return jsonify({
+                    'success': False,
+                    'message': 'Image not detected. Please upload a valid image.'
+                }), 400
 
         # Determine department based on category
         with Db() as db:

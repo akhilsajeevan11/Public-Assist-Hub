@@ -121,9 +121,10 @@ document.getElementById("issueForm").addEventListener("submit", function (event)
     .then(response => {
         if (!response.ok) {
             if (response.status === 400) {
-                // Redirect to login page if user is not logged in
-                window.location.href = '/login';
-                return;
+                // Handle 400 response (e.g., no detection in image)
+                return response.json().then(data => {
+                    throw new Error(data.message || "Image not detected. Please upload a valid image.");
+                });
             }
             throw new Error("Network response was not ok");
         }
@@ -142,7 +143,7 @@ document.getElementById("issueForm").addEventListener("submit", function (event)
     })
     .catch(error => {
         console.error("Error submitting issue:", error);
-        alert("Error submitting issue: " + error.message);
+        alert(error.message); // Show clean notification for no detection or other errors
     });
 });
 
