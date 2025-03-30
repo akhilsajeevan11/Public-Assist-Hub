@@ -53,13 +53,6 @@ def allowed_file(filename):
 socketio = SocketIO(app)
 
 @app.before_request
-def check_login():
-    # List of routes that don't require authentication
-    allowed_routes = ['admin_login','login', 'verify_otp', 'static', 'index']
-    if request.endpoint not in allowed_routes and 'userID' not in session:
-        return redirect(url_for('login'))
-
-@app.before_request
 def set_session_permanent():
     session.permanent = False
 
@@ -1056,7 +1049,28 @@ def get_municipality_feedback():
 @app.route('/logout', methods=['GET'])
 def logout():
     session.clear()  # Clear the session
-    return redirect(url_for('login'))  # Redirect to the login page
+    app.logger.info("Session cleared on logout")  # Log session clearing
+    return redirect(url_for('index'))  # Redirect to the home page
+
+@app.before_request
+def check_login():
+    # List of routes that don't require authentication
+    allowed_routes = ['login', 'verify_otp', 'static', 'index', 'admin_login']
+    
+    # If the route is allowed, skip authentication
+    if request.endpoint in allowed_routes:
+        return
+
+    # Check for session keys based on user roles
+    if 'userID' in session:  # Regular user
+        return
+    elif 'admin_id' in session:  # Admin user
+        return
+    elif 'dept_id' in session and 'role' in session:  # Municipality, PWD, or Official
+        return
+    else:
+        # If no valid session key is found, redirect to the home page
+        return redirect(url_for('index'))
 
 @app.after_request
 def add_no_cache_headers(response):

@@ -402,10 +402,12 @@
                     .catch(error => alert("Error deleting official: " + error.message));
             }
         }
-      window.history.pushState(null, "", window.location.href);
-      window.onpopstate = function () {
+
+        // Prevent back button navigation
         window.history.pushState(null, "", window.location.href);
-      };
+        window.onpopstate = function () {
+            window.history.pushState(null, "", window.location.href);
+        };
     </script>
 </body>
 </html>
