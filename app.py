@@ -407,7 +407,6 @@ def admin():
         app.logger.error(f"Error fetching admin data: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'message': 'Error fetching admin data'}), 500
 
-
 @app.route('/admin/add-user', methods=['POST'])
 def admin_add_user():
     try:
@@ -433,21 +432,22 @@ def admin_add_user():
             db.execute("START TRANSACTION")
 
             try:
-                # Check if the department already exists
+                # Ensure the department exists
                 db.execute("SELECT deptID FROM department WHERE deptID = %s", (dept_id,))
                 existing_department = db.fetchone()
 
-                # If the department doesn't exist, insert it
                 if not existing_department:
                     db.execute("INSERT INTO department (deptID, name) VALUES (%s, %s)", (dept_id, role))
 
-                # Check if the user already exists in the role-specific table
+                # Determine the correct table
                 table_name = "municipality" if role == "MUNICIPALITY" else "pwd"
-                db.execute(f"SELECT deptID FROM {table_name} WHERE deptID = %s", (dept_id,))
+
+                # Ensure email is unique
+                db.execute(f"SELECT id FROM {table_name} WHERE email = %s", (email,))
                 existing_user = db.fetchone()
 
                 if existing_user:
-                    return jsonify({'success': False, 'message': f'{role} user with deptID {dept_id} already exists'}), 400
+                    return jsonify({'success': False, 'message': 'Email already exists'}), 400
 
                 # Insert into role-specific table (municipality or pwd)
                 db.execute(
@@ -481,7 +481,7 @@ def admin_add_user():
     except Exception as e:
         app.logger.error(f"Unexpected error: {str(e)}")
         return jsonify({'success': False, 'message': 'An unexpected error occurred'}), 500
-    
+
 
 
 @app.route('/get-officials', methods=['GET'])
