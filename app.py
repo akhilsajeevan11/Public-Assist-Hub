@@ -656,10 +656,16 @@ def submit_issue():
             values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
             db.execute(query, values)
 
+        # Customize success message based on department
+        if dept_name == 'Municipality':
+            success_message = f"Issue assigned to Municipality."
+        else:
+            success_message = "Issue submitted successfully!"
+
         # Return success message
         return jsonify({
             'success': True,
-            'message': 'Issue submitted successfully!',
+            'message': success_message,
             'image_url': f"/static/complaint_images/{filename}" if filename else None
         })
 
