@@ -660,7 +660,7 @@ def submit_issue():
         if dept_name == 'Municipality':
             success_message = f"Issue assigned to Municipality."
         else:
-            success_message = "Issue submitted successfully!"
+            success_message = f"Issue assigned to PWD."
 
         # Return success message
         return jsonify({
