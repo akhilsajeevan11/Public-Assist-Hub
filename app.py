@@ -613,7 +613,6 @@ def submit_issue():
             raise ValueError("User not logged in. Please log in to report an issue.")
 
         # Process image and get prediction
-        category = "General"  # Default category
         filename = None
         if image and image.filename != '':
             if not allowed_file(image.filename):
@@ -632,70 +631,76 @@ def submit_issue():
             img = Image.open(image.stream)
             results = model.predict(img)
             if results and len(results[0]) > 0:
-                class_id = int(results[0].boxes.cls[0])
-                category = model.names[class_id]
+                # Get all detected classes
+                detected_classes = results[0].boxes.cls.tolist()
+                detected_categories = [model.names[int(class_id)] for class_id in detected_classes]
+                app.logger.info(f"Detected categories: {detected_categories}")
             else:
                 # If no prediction is made, return a popup message
                 return jsonify({
                     'success': False,
                     'message': 'Image not detected. Please upload a valid image.'
                 }), 400
-
-        # Determine department based on category
-        with Db() as db:
-            category_lower = category.lower()
-            app.logger.info(f"Looking up department for category: {category_lower}")
-
-            if category_lower == 'waste':
-                dept_name = 'Municipality'
-            elif category_lower == 'pothole':
-                dept_name = 'Pwd'
-            else:
-                raise ValueError("Invalid category. Please provide a valid issue category.")
-
-            # Fetch department ID
-            db.execute("SELECT deptID FROM department WHERE name = %s", (dept_name,))
-            dept_result = db.fetchone()
-            if not dept_result:
-                raise ValueError(f"No department found for category '{category}'. Please contact support.")
-            
-            dept_id = dept_result['deptID']
-            app.logger.info(f"Assigned department: {dept_name} (ID: {dept_id})")
-
-            # Get the current date and time
-            current_datetime = datetime.now()
-
-            # Insert into complaint table with current date and time
-            query = """
-            INSERT INTO complaint 
-                (title, description, photo, geoLocation, category, userID, assignedDept, complaint_datetime)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = (title, description, filename, location, category, user_id, dept_id, current_datetime)
-            db.execute(query, values)
-
-            # Get the last inserted complaint ID
-            complaint_id = db.cursor.lastrowid
-
-            # Insert into imagerecognition table
-            query = """
-            INSERT INTO imagerecognition 
-                (model, detectedIssueType, complaintID)
-            VALUES (%s, %s, %s)
-            """
-            values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
-            db.execute(query, values)
-
-        # Customize success message based on department
-        if dept_name == 'Municipality':
-            success_message = f"Issue assigned to Municipality."
         else:
-            success_message = f"Issue assigned to PWD."
+            # If no image is uploaded, treat it as a general issue
+            detected_categories = ['General']
+
+        # Process each detected category
+        success_messages = []
+        with Db() as db:
+            for category in detected_categories:
+                category_lower = category.lower()
+                app.logger.info(f"Processing category: {category_lower}")
+
+                # Determine department based on category
+                if category_lower == 'waste':
+                    dept_name = 'Municipality'
+                elif category_lower == 'pothole':
+                    dept_name = 'Pwd'
+                else:
+                    dept_name = 'General'  # Default department for unknown categories
+
+                # Fetch department ID
+                db.execute("SELECT deptID FROM department WHERE name = %s", (dept_name,))
+                dept_result = db.fetchone()
+                if not dept_result:
+                    app.logger.error(f"No department found for category '{category}'")
+                    continue  # Skip this category if no department is found
+
+                dept_id = dept_result['deptID']
+                app.logger.info(f"Assigned department: {dept_name} (ID: {dept_id})")
+
+                # Get the current date and time
+                current_datetime = datetime.now()
+
+                # Insert into complaint table with current date and time
+                query = """
+                INSERT INTO complaint 
+                    (title, description, photo, geoLocation, category, userID, assignedDept, complaint_datetime)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                values = (title, description, filename, location, category, user_id, dept_id, current_datetime)
+                db.execute(query, values)
+
+                # Get the last inserted complaint ID
+                complaint_id = db.cursor.lastrowid
+
+                # Insert into imagerecognition table
+                query = """
+                INSERT INTO imagerecognition 
+                    (model, detectedIssueType, complaintID)
+                VALUES (%s, %s, %s)
+                """
+                values = ("yolo11", category, complaint_id)  # Use "yolo11" as the model name
+                db.execute(query, values)
+
+                # Add success message for this category
+                success_messages.append(f"Issue assigned to {dept_name}.")
 
         # Return success message
         return jsonify({
             'success': True,
-            'message': success_message,
+            'message': " ".join(success_messages),
             'image_url': f"/static/complaint_images/{filename}" if filename else None
         })
 
